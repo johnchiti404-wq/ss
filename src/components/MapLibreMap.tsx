@@ -88,6 +88,9 @@ interface MapLibreMapProps {
   vehicleType?: 'bicycle' | 'motorbike' | 'car' | 'bus' | 'truck' | string;
   // Driver's registered vehicle color (e.g. 'red', 'white', 'blue')
   vehicleColor?: string;
+  onMapIdle?: (center: { lat: number; lng: number }) => void;
+  focusCoordinate?: { lat: number; lng: number } | null;
+  fitBoundsToken?: number;
 }
 
 // Map a vehicle type to an image in /public/cars
@@ -379,8 +382,11 @@ export const MapLibreMap: React.FC<MapLibreMapProps> = ({
   fitBounds = true,
   storePosition,
   vehicleType,
-  vehicleColor
-}) => {
+  vehicleColor,
+  onMapIdle,
+  focusCoordinate,
+  fitBoundsToken
+  }) => {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<maplibregl.Map | null>(null);
   const markersRef = useRef<{ [key: string]: maplibregl.Marker }>({});
@@ -439,6 +445,21 @@ export const MapLibreMap: React.FC<MapLibreMapProps> = ({
       map.current = null;
     };
   }, []);
+
+  useEffect(() => {
+    if (!map.current || !isMapLoaded || !onMapIdle) return;
+    const handleIdle = () => {
+      const center = map.current?.getCenter();
+      if (center) onMapIdle({ lat: center.lat, lng: center.lng });
+    };
+    map.current.on('idle', handleIdle);
+    return () => { map.current?.off('idle', handleIdle); };
+  }, [isMapLoaded, onMapIdle]);
+
+  useEffect(() => {
+    if (!map.current || !isMapLoaded || !focusCoordinate) return;
+    map.current.easeTo({ center: [focusCoordinate.lng, focusCoordinate.lat], duration: 500, essential: true });
+  }, [focusCoordinate, isMapLoaded]);
 
   // Update markers
   useEffect(() => {

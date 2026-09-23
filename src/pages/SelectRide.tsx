@@ -6,6 +6,7 @@ import { PromoDetailsPanel } from '../components/PromoDetailsPanel';
 import { useRideContext } from '../contexts/RideContext';
 import { apiPost } from '../config/api';
 import { MapLibreMap, MapMarker } from '../components/MapLibreMap';
+import { LocationPickerOverlay, LocationEditMode, LocationCoordinate, formatCoordinateAddress } from '../components/LocationPickerOverlay';
 import { useNearbyDrivers, LUSAKA_DEFAULT } from '../hooks/useNearbyDrivers';
 import {
   BackendRideOption,
@@ -71,6 +72,8 @@ export const SelectRide: React.FC<SelectRideProps> = ({
   const panelRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [locationEditMode, setLocationEditMode] = useState<LocationEditMode | null>(null);
+  const [locationCenter, setLocationCenter] = useState<LocationCoordinate | null>(null);
 
   // Read navigation state to determine service type
   const { 
@@ -436,8 +439,30 @@ export const SelectRide: React.FC<SelectRideProps> = ({
           pickupEta={selectedRide?.enabled ? selectedRide.eta : undefined}
           arrivalTime={selectedRide?.enabled ? getArrivalTime() || undefined : undefined}
           fitBounds={mapMarkers.length > 1}
+          onMapIdle={(center) => locationEditMode && setLocationCenter(center)}
+          focusCoordinate={locationEditMode ? locationCenter : null}
           className="w-full h-full"
         />
+        {locationEditMode && (
+          <LocationPickerOverlay
+            mode={locationEditMode}
+            initialCoordinate={locationCenter || pickupCoords || destinationCoords || LUSAKA_DEFAULT}
+            initialAddress={locationEditMode === 'pickup' ? (navPickup || pickup) : (navDestination || destination)}
+            onCancel={() => setLocationEditMode(null)}
+            onConfirm={(coordinate, address) => {
+              navigate('/your-route', { replace: true, state: {
+                highlightDestination: locationEditMode === 'destination',
+                highlightPickup: locationEditMode === 'pickup',
+                prefilledPickup: locationEditMode === 'pickup' ? address || formatCoordinateAddress(coordinate) : (navPickup || pickup),
+                prefilledDestination: locationEditMode === 'destination' ? address || formatCoordinateAddress(coordinate) : (navDestination || destination),
+                prefilledPickupCoords: locationEditMode === 'pickup' ? coordinate : pickupCoords,
+                prefilledDestinationCoords: locationEditMode === 'destination' ? coordinate : destinationCoords,
+                prefilledStops: navStops,
+                prefilledStopCoords: location.state?.stopCoords || []
+              }});
+            }}
+          />
+        )}
       </div>
 
       <motion.div
@@ -465,18 +490,10 @@ export const SelectRide: React.FC<SelectRideProps> = ({
           </button>
 
           <button
-            onClick={() => navigate('/your-route', {
-              replace: true,
-              state: {
-                highlightDestination: true,
-                prefilledDestination: navDestination || destination,
-                prefilledPickup: navPickup || pickup,
-                prefilledPickupCoords: pickupCoords,
-                prefilledDestinationCoords: destinationCoords,
-                prefilledStops: navStops.length > 0 ? navStops : stops,
-                prefilledStopCoords: location.state?.stopCoords || []
-              }
-            })}
+            onClick={() => {
+              setLocationEditMode('destination');
+              setLocationCenter(destinationCoords || pickupCoords || LUSAKA_DEFAULT);
+            }}
             className="flex-1 text-left min-w-0"
           >
             <div className="overflow-x-auto scrollbar-hide" style={{ WebkitOverflowScrolling: 'touch' }}>
