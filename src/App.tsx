@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { BrowserRouter as Router, Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
@@ -44,6 +44,7 @@ import { useUserProfile } from './hooks/useUserProfile';
 import { useFirebaseRide } from './hooks/useFirebaseRide';
 import { firebaseService } from './services/firebaseService';
 import { getETA } from './utils/etaCalculation';
+import { useNotificationPermission } from './hooks/useNotificationPermission';
 
 interface AppState {
   selectedDestination: string;
@@ -77,6 +78,14 @@ function AppContent({ userId }: { userId: string }) {
   const [driverInfo, setDriverInfo] = useState<any>(null);
   const [eta, setEta] = useState('3 mins');
   const [showRatingModal, setShowRatingModal] = useState(false);
+  const [pushToast, setPushToast] = useState<{ title: string; body: string } | null>(null);
+
+  const handleForegroundMessage = useCallback((title: string, body: string) => {
+    setPushToast({ title, body });
+    window.setTimeout(() => setPushToast(null), 5000);
+  }, []);
+
+  useNotificationPermission(userId, handleForegroundMessage);
 
   // Startup location permission, GPS detection, live position watching and
   // throttled reverse geocoding are now owned by the global LocationProvider
@@ -268,6 +277,12 @@ function AppContent({ userId }: { userId: string }) {
           <MessageProvider userId={profile?.id || null} rideId={appState.currentRideId}>
             <RideProvider rideId={appState.currentRideId}>
           <div className="app">
+            {pushToast && (
+              <div className="fixed top-4 left-1/2 z-50 w-[calc(100%-2rem)] max-w-sm -translate-x-1/2 rounded-xl bg-gray-900 px-4 py-3 text-white shadow-lg" role="status">
+                <p className="font-semibold">{pushToast.title}</p>
+                {pushToast.body && <p className="mt-1 text-sm text-gray-200">{pushToast.body}</p>}
+              </div>
+            )}
           <AnimatePresence>
             {isRideActive() && driverInfo && location.pathname !== '/driver-coming' && (
               <CurrentRideBar

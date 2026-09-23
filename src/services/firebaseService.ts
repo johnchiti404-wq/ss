@@ -75,6 +75,10 @@ class FirebaseService {
     await setDoc(userRef, data, { merge: true });
   }
 
+  async saveFcmToken(uid: string, token: string): Promise<void> {
+    await setDoc(doc(db, 'users', uid), { fcmToken: token }, { merge: true });
+  }
+
   async getUserProfile(userId: string): Promise<UserProfile | null> {
     const userRef = doc(db, 'users', userId);
     const snapshot = await getDoc(userRef);
