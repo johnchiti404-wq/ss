@@ -440,6 +440,14 @@ export const SelectRide: React.FC<SelectRideProps> = ({
           arrivalTime={selectedRide?.enabled ? getArrivalTime() || undefined : undefined}
           fitBounds={mapMarkers.length > 1}
           onMapIdle={(center) => locationEditMode && setLocationCenter(center)}
+          onEtaBubbleClick={() => {
+            setLocationEditMode('pickup');
+            setLocationCenter(pickupCoords || LUSAKA_DEFAULT);
+          }}
+          onArrivalCardClick={() => {
+            setLocationEditMode('destination');
+            setLocationCenter(destinationCoords || pickupCoords || LUSAKA_DEFAULT);
+          }}
           focusCoordinate={locationEditMode ? locationCenter : null}
           className="w-full h-full"
         />

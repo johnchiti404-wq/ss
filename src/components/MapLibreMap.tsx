@@ -89,6 +89,8 @@ interface MapLibreMapProps {
   // Driver's registered vehicle color (e.g. 'red', 'white', 'blue')
   vehicleColor?: string;
   onMapIdle?: (center: { lat: number; lng: number }) => void;
+  onEtaBubbleClick?: () => void;
+  onArrivalCardClick?: () => void;
   focusCoordinate?: { lat: number; lng: number } | null;
   fitBoundsToken?: number;
 }
@@ -384,6 +386,8 @@ export const MapLibreMap: React.FC<MapLibreMapProps> = ({
   vehicleType,
   vehicleColor,
   onMapIdle,
+  onEtaBubbleClick,
+  onArrivalCardClick,
   focusCoordinate,
   fitBoundsToken
   }) => {
@@ -395,7 +399,14 @@ export const MapLibreMap: React.FC<MapLibreMapProps> = ({
   const etaBubbleRef = useRef<maplibregl.Marker | null>(null);
   const arrivalCardRef = useRef<maplibregl.Marker | null>(null);
   const storeMarkerRef = useRef<maplibregl.Marker | null>(null);
+  const onEtaBubbleClickRef = useRef(onEtaBubbleClick);
+  const onArrivalCardClickRef = useRef(onArrivalCardClick);
   const [isMapLoaded, setIsMapLoaded] = useState(false);
+
+  useEffect(() => {
+    onEtaBubbleClickRef.current = onEtaBubbleClick;
+    onArrivalCardClickRef.current = onArrivalCardClick;
+  });
 
   // Nearby driver updates replace the markers array frequently. Keep the
   // route anchors as primitive keys so route decorations are only rebuilt when
@@ -703,6 +714,11 @@ export const MapLibreMap: React.FC<MapLibreMapProps> = ({
       if (lat === undefined || lng === undefined) return;
 
       const el = createEtaBubble(pickupEta);
+      el.style.cursor = 'pointer';
+      el.addEventListener('click', (e) => {
+        e.stopPropagation();
+        onEtaBubbleClickRef.current?.();
+      });
       etaBubbleRef.current = new maplibregl.Marker({ element: el, anchor: 'bottom' })
         .setLngLat([lng, lat])
         .addTo(map.current);
@@ -742,6 +758,11 @@ export const MapLibreMap: React.FC<MapLibreMapProps> = ({
       if (lat === undefined || lng === undefined) return;
 
       const el = createArrivalCard(arrivalTime);
+      el.style.cursor = 'pointer';
+      el.addEventListener('click', (e) => {
+        e.stopPropagation();
+        onArrivalCardClickRef.current?.();
+      });
       arrivalCardRef.current = new maplibregl.Marker({ element: el, anchor: 'bottom' })
         .setLngLat([lng, lat])
         .addTo(map.current);
