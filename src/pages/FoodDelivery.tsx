@@ -216,7 +216,7 @@ export function FoodDelivery() {
   useEffect(() => {
     loadDeliveryOptions();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [location.key]);
+  }, [location.key, routeData?.storeLocation, routeData?.deliveryCoords]);
 
   // Keep the drawn route polyline in sync with the currently selected option
   useEffect(() => {
@@ -481,11 +481,6 @@ navigate('/confirm-order', {
           arrivalTime={selectedOption?.enabled ? getArrivalTime() || undefined : undefined}
           fitBounds={!locationEditMode && mapMarkers.length > 1}
           onMapIdle={(center) => locationEditMode && setLocationCenter(center)}
-          onEtaBubbleClick={() => {
-            const store = routeData?.storeLocation || LUSAKA_DEFAULT;
-            setLocationEditMode('pickup');
-            setLocationCenter({ lat: store.lat, lng: store.lng });
-          }}
           onArrivalCardClick={() => {
             const delivery = routeData?.deliveryCoords || routeData?.destinationCoords || LUSAKA_DEFAULT;
             setLocationEditMode('destination');
@@ -513,7 +508,7 @@ navigate('/confirm-order', {
               localStorage.setItem('FOODIES_ROUTE_DATA', JSON.stringify(nextRouteData));
               setRouteData(nextRouteData);
               setLocationEditMode(null);
-              window.setTimeout(() => loadDeliveryOptions(), 700);
+              setLocationEditAddress('');
             }}
           />
         )}

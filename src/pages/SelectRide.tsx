@@ -89,13 +89,20 @@ export const SelectRide: React.FC<SelectRideProps> = ({
     stops: navStops = []
   } = location.state || {};
 
+  const [pickupOverride, setPickupOverride] = useState<{ address: string; coords: LocationCoordinate } | null>(null);
+  const [destinationOverride, setDestinationOverride] = useState<{ address: string; coords: LocationCoordinate } | null>(null);
+  const effectivePickupCoords = pickupOverride?.coords ?? pickupCoords;
+  const effectivePickup = pickupOverride?.address ?? (navPickup || pickup);
+  const effectiveDestinationCoords = destinationOverride?.coords ?? destinationCoords;
+  const effectiveDestination = destinationOverride?.address ?? (navDestination || destination);
+
   // SINGLE SOURCE OF TRUTH - local state for ride options from backend
   const [rideOptions, setRideOptions] = useState<BackendRideOption[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const [selectedRide, setSelectedRide] = useState<BackendRideOption | null>(null);
   const [routePolyline, setRoutePolyline] = useState<string | null>(null);
-  const nearbyDrivers = useNearbyDrivers(pickupCoords?.lat ?? null, pickupCoords?.lng ?? null);
+  const nearbyDrivers = useNearbyDrivers(effectivePickupCoords?.lat ?? null, effectivePickupCoords?.lng ?? null);
 
   // Promo discount (30%)
   const promoDiscount = 30;
@@ -107,7 +114,7 @@ export const SelectRide: React.FC<SelectRideProps> = ({
 
     // REAL COORDINATES ONLY - no fallbacks
     // Backend will reject if coordinates are missing
-    if (!pickupCoords?.lat || !pickupCoords?.lng || !destinationCoords?.lat || !destinationCoords?.lng) {
+    if (!effectivePickupCoords?.lat || !effectivePickupCoords?.lng || !effectiveDestinationCoords?.lat || !effectiveDestinationCoords?.lng) {
       setError('Missing coordinates. Please select valid addresses.');
       setIsLoading(false);
       return;
@@ -124,13 +131,13 @@ export const SelectRide: React.FC<SelectRideProps> = ({
       }));
 
       const payload: Record<string, unknown> = {
-        pickup: navPickup || pickup,
-        destination: navDestination || destination,
+        pickup: effectivePickup,
+        destination: effectiveDestination,
         stops: stopsPayload,
-        pickupLat: pickupCoords.lat,
-        pickupLng: pickupCoords.lng,
-        dropLat: destinationCoords.lat,
-        dropLng: destinationCoords.lng
+        pickupLat: effectivePickupCoords.lat,
+        pickupLng: effectivePickupCoords.lng,
+        dropLat: effectiveDestinationCoords.lat,
+        dropLng: effectiveDestinationCoords.lng
       };
 
       // Service type payloads based on navigation state
@@ -190,7 +197,7 @@ export const SelectRide: React.FC<SelectRideProps> = ({
     } finally {
       setIsLoading(false);
     }
-  }, [navPickup, pickup, navDestination, destination, navStops, stops, pickupCoords, destinationCoords, serviceType, extraOption, category, kg, location.state]);
+  }, [effectivePickup, effectiveDestination, effectivePickupCoords, effectiveDestinationCoords, navStops, stops, serviceType, extraOption, category, kg, location.state]);
 
   // Re-fetch on every navigation to this page (e.g. returning from YourRoute
   // after changing an address or adding a stop). location.key changes on each
@@ -198,7 +205,7 @@ export const SelectRide: React.FC<SelectRideProps> = ({
   useEffect(() => {
     loadRideOptions();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [location.key]);
+  }, [location.key, pickupOverride, destinationOverride]);
 
   // Keep the drawn route polyline in sync with the currently selected ride
   useEffect(() => {
@@ -307,8 +314,8 @@ export const SelectRide: React.FC<SelectRideProps> = ({
   const getAddressDisplay = () => {
     const actualStops = navStops.length > 0 ? navStops : stops;
     const stopsText = actualStops.length > 0 ? ` +${actualStops.length} stop${actualStops.length > 1 ? 's' : ''}` : '';
-    const actualPickup = navPickup || pickup;
-    const actualDestination = navDestination || destination;
+    const actualPickup = effectivePickup;
+    const actualDestination = effectiveDestination;
     return `${actualPickup} → ${actualDestination}${stopsText}`;
   };
 
@@ -360,11 +367,11 @@ export const SelectRide: React.FC<SelectRideProps> = ({
               selectedVehicle: selectedRide.category,
             },
           }),
-          pickupAddress: navPickup || pickup,
-          destinationAddress: navDestination || destination,
+          pickupAddress: effectivePickup,
+          destinationAddress: effectiveDestination,
           stops: navStops.length > 0 ? navStops : stops,
-          pickupCoords,
-          destinationCoords,
+          pickupCoords: effectivePickupCoords,
+          destinationCoords: effectiveDestinationCoords,
           stopCoords: location.state?.stopCoords || [],
           encodedPolyline: selectedRide?.encodedPolyline ?? null
         }
@@ -407,16 +414,16 @@ export const SelectRide: React.FC<SelectRideProps> = ({
         });
       }
     });
-    if (pickupCoords?.lat != null && pickupCoords?.lng != null) {
+    if (effectivePickupCoords?.lat != null && effectivePickupCoords?.lng != null) {
     markers.unshift({
       id: 'current-location',
       type: 'currentLocation',
-      lat: pickupCoords.lat,
-      lng: pickupCoords.lng
+      lat: effectivePickupCoords.lat,
+      lng: effectivePickupCoords.lng
     });
   }
   return markers;
-  }, [location.state?.stopCoords, pickupCoords]);
+  }, [location.state?.stopCoords, effectivePickupCoords]);
 
   // Calculate arrival time based on ETA
   const getArrivalTime = useCallback(() => {
@@ -431,8 +438,8 @@ export const SelectRide: React.FC<SelectRideProps> = ({
       {/* Real MapLibre Map Background */}
       <div className="absolute inset-0 z-0">
         <MapLibreMap
-          center={pickupCoords?.lat && pickupCoords?.lng 
-            ? { lat: pickupCoords.lat, lng: pickupCoords.lng } 
+          center={effectivePickupCoords?.lat && effectivePickupCoords?.lng 
+            ? { lat: effectivePickupCoords.lat, lng: effectivePickupCoords.lng } 
             : LUSAKA_DEFAULT}
           zoom={locationEditMode ? 16 : 13}
   markers={[...mapMarkers, ...nearbyDrivers]}
@@ -443,11 +450,11 @@ export const SelectRide: React.FC<SelectRideProps> = ({
           onMapIdle={(center) => locationEditMode && setLocationCenter(center)}
           onEtaBubbleClick={() => {
             setLocationEditMode('pickup');
-            setLocationCenter(pickupCoords || LUSAKA_DEFAULT);
+            setLocationCenter(effectivePickupCoords || LUSAKA_DEFAULT);
           }}
           onArrivalCardClick={() => {
             setLocationEditMode('destination');
-            setLocationCenter(destinationCoords || pickupCoords || LUSAKA_DEFAULT);
+            setLocationCenter(effectiveDestinationCoords || effectivePickupCoords || LUSAKA_DEFAULT);
           }}
           focusCoordinate={locationEditMode ? locationCenter : null}
           className="w-full h-full"
@@ -457,21 +464,19 @@ export const SelectRide: React.FC<SelectRideProps> = ({
           <motion.div key="location-picker" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.35 }}>
           <LocationPickerOverlay
             mode={locationEditMode}
-            initialCoordinate={locationCenter || pickupCoords || destinationCoords || LUSAKA_DEFAULT}
-  initialAddress={locationEditAddress || (locationEditMode === 'pickup' ? (navPickup || pickup) : (navDestination || destination))}
+            initialCoordinate={locationCenter || effectivePickupCoords || effectiveDestinationCoords || LUSAKA_DEFAULT}
+  initialAddress={locationEditAddress || (locationEditMode === 'pickup' ? effectivePickup : effectiveDestination)}
   onAddressChange={setLocationEditAddress}
   onCancel={() => { setLocationEditMode(null); setLocationEditAddress(''); }}
             onConfirm={(coordinate, address) => {
-              navigate('/your-route', { replace: true, state: {
-                highlightDestination: locationEditMode === 'destination',
-                highlightPickup: locationEditMode === 'pickup',
-                prefilledPickup: locationEditMode === 'pickup' ? address || formatCoordinateAddress(coordinate) : (navPickup || pickup),
-                prefilledDestination: locationEditMode === 'destination' ? address || formatCoordinateAddress(coordinate) : (navDestination || destination),
-                prefilledPickupCoords: locationEditMode === 'pickup' ? coordinate : pickupCoords,
-                prefilledDestinationCoords: locationEditMode === 'destination' ? coordinate : destinationCoords,
-                prefilledStops: navStops,
-                prefilledStopCoords: location.state?.stopCoords || []
-              }});
+              const nextAddress = address || formatCoordinateAddress(coordinate);
+              if (locationEditMode === 'pickup') {
+                setPickupOverride({ address: nextAddress, coords: coordinate });
+              } else if (locationEditMode === 'destination') {
+                setDestinationOverride({ address: nextAddress, coords: coordinate });
+              }
+              setLocationEditMode(null);
+              setLocationEditAddress('');
             }}
           />
           </motion.div>
@@ -490,10 +495,10 @@ export const SelectRide: React.FC<SelectRideProps> = ({
             onClick={() => navigate('/your-route', {
               replace: true,
               state: {
-                prefilledDestination: navDestination || destination,
-                prefilledPickup: navPickup || pickup,
-                prefilledPickupCoords: pickupCoords,
-                prefilledDestinationCoords: destinationCoords,
+                prefilledDestination: effectiveDestination,
+                prefilledPickup: effectivePickup,
+                prefilledPickupCoords: effectivePickupCoords,
+                prefilledDestinationCoords: effectiveDestinationCoords,
                 prefilledStops: navStops.length > 0 ? navStops : stops,
                 prefilledStopCoords: location.state?.stopCoords || []
               }
@@ -506,7 +511,7 @@ export const SelectRide: React.FC<SelectRideProps> = ({
           <button
             onClick={() => {
               setLocationEditMode('destination');
-              setLocationCenter(destinationCoords || pickupCoords || LUSAKA_DEFAULT);
+            setLocationCenter(effectiveDestinationCoords || effectivePickupCoords || LUSAKA_DEFAULT);
             }}
             className="flex-1 text-left min-w-0"
           >
@@ -524,10 +529,10 @@ export const SelectRide: React.FC<SelectRideProps> = ({
               replace: true,
               state: {
                 highlightAddStop: true,
-                prefilledDestination: navDestination || destination,
-                prefilledPickup: navPickup || pickup,
-                prefilledPickupCoords: pickupCoords,
-                prefilledDestinationCoords: destinationCoords,
+                prefilledDestination: effectiveDestination,
+                prefilledPickup: effectivePickup,
+                prefilledPickupCoords: effectivePickupCoords,
+                prefilledDestinationCoords: effectiveDestinationCoords,
                 prefilledStops: navStops.length > 0 ? navStops : stops,
                 prefilledStopCoords: location.state?.stopCoords || []
               }

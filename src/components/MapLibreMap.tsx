@@ -717,12 +717,14 @@ export const MapLibreMap: React.FC<MapLibreMapProps> = ({
 
       if (lat === undefined || lng === undefined) return;
 
-      const el = createEtaBubble(pickupEta);
-      el.style.cursor = 'pointer';
-      el.addEventListener('click', (e) => {
-        e.stopPropagation();
-        onEtaBubbleClickRef.current?.();
-      });
+  const el = createEtaBubble(pickupEta);
+  if (onEtaBubbleClickRef.current) {
+  el.style.cursor = 'pointer';
+  el.addEventListener('click', (e) => {
+  e.stopPropagation();
+  onEtaBubbleClickRef.current?.();
+  });
+  }
       etaBubbleRef.current = new maplibregl.Marker({ element: el, anchor: 'bottom' })
         .setLngLat([lng, lat])
         .addTo(map.current);
@@ -761,12 +763,14 @@ export const MapLibreMap: React.FC<MapLibreMapProps> = ({
 
       if (lat === undefined || lng === undefined) return;
 
-      const el = createArrivalCard(arrivalTime);
-      el.style.cursor = 'pointer';
-      el.addEventListener('click', (e) => {
-        e.stopPropagation();
-        onArrivalCardClickRef.current?.();
-      });
+  const el = createArrivalCard(arrivalTime);
+  if (onArrivalCardClickRef.current) {
+  el.style.cursor = 'pointer';
+  el.addEventListener('click', (e) => {
+  e.stopPropagation();
+  onArrivalCardClickRef.current?.();
+  });
+  }
       arrivalCardRef.current = new maplibregl.Marker({ element: el, anchor: 'bottom' })
         .setLngLat([lng, lat])
         .addTo(map.current);
