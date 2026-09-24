@@ -29,9 +29,11 @@ export function LocationPickerOverlay({ mode, initialCoordinate, initialAddress,
     const timer = window.setTimeout(async () => {
       setIsLoading(true);
       let result = await reverseGeocode(initialCoordinate.lat, initialCoordinate.lng);
-      if (!result) result = await reverseGeocode(initialCoordinate.lat, initialCoordinate.lng);
+      if (!result) {
+        result = await reverseGeocode(initialCoordinate.lat, initialCoordinate.lng);
+      }
       if (!cancelled) {
-        const nextAddress = result?.address || '';
+        const nextAddress = result?.address || formatCoordinateAddress(initialCoordinate);
         setAddress(nextAddress);
         onAddressChange?.(nextAddress);
         setIsLoading(false);

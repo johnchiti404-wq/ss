@@ -478,7 +478,7 @@ navigate('/confirm-order', {
           polyline={routePolyline ?? undefined}
           pickupEta={selectedOption?.enabled ? selectedOption.eta : undefined}
           arrivalTime={selectedOption?.enabled ? getArrivalTime() || undefined : undefined}
-          fitBounds={mapMarkers.length > 1}
+          fitBounds={!locationEditMode && mapMarkers.length > 1}
           onMapIdle={(center) => locationEditMode && setLocationCenter(center)}
           onEtaBubbleClick={() => {
             const store = routeData?.storeLocation || LUSAKA_DEFAULT;

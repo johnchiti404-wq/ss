@@ -438,7 +438,7 @@ export const SelectRide: React.FC<SelectRideProps> = ({
   polyline={routePolyline ?? undefined}
           pickupEta={selectedRide?.enabled ? selectedRide.eta : undefined}
           arrivalTime={selectedRide?.enabled ? getArrivalTime() || undefined : undefined}
-          fitBounds={mapMarkers.length > 1}
+          fitBounds={!locationEditMode && mapMarkers.length > 1}
           onMapIdle={(center) => locationEditMode && setLocationCenter(center)}
           onEtaBubbleClick={() => {
             setLocationEditMode('pickup');
