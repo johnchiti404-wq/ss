@@ -468,9 +468,13 @@ export const MapLibreMap: React.FC<MapLibreMapProps> = ({
   }, [isMapLoaded, onMapIdle]);
 
   useEffect(() => {
-    if (!map.current || !isMapLoaded || !focusCoordinate) return;
-    map.current.easeTo({ center: [focusCoordinate.lng, focusCoordinate.lat], duration: 500, essential: true });
-  }, [focusCoordinate, isMapLoaded]);
+    if (!map.current || !isMapLoaded) return;
+    if (focusCoordinate) {
+      map.current.easeTo({ center: [focusCoordinate.lng, focusCoordinate.lat], zoom: Math.max(zoom, 16), duration: 650, essential: true });
+    } else {
+      map.current.easeTo({ zoom, duration: 650, essential: true });
+    }
+  }, [focusCoordinate, isMapLoaded, zoom]);
 
   // Update markers
   useEffect(() => {

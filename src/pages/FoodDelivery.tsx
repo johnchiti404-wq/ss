@@ -6,6 +6,7 @@ import { useGlobalCart } from '../contexts/GlobalCartContext';
 import { useGeolocation } from '../hooks/useGeolocation';
 import { apiPost } from '../config/api';
 import { MapLibreMap, MapMarker } from '../components/MapLibreMap';
+import { LocationPickerOverlay, LocationEditMode, LocationCoordinate } from '../components/LocationPickerOverlay';
 import { useNearbyDrivers, LUSAKA_DEFAULT } from '../hooks/useNearbyDrivers';
 import {
   BackendRideOption,
@@ -83,6 +84,8 @@ export function FoodDelivery() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [isScrolledToTop, setIsScrolledToTop] = useState(true);
   const [isDragging, setIsDragging] = useState(false);
+  const [locationEditMode, setLocationEditMode] = useState<LocationEditMode | null>(null);
+  const [locationCenter, setLocationCenter] = useState<LocationCoordinate | null>(null);
 
   // Spring-driven panel height for smooth animations
   const rawPanelVh = useMotionValue(PANEL_MIN_HEIGHT);
@@ -470,14 +473,48 @@ navigate('/confirm-order', {
           center={routeData?.storeLocation?.lat && routeData?.storeLocation?.lng 
             ? { lat: routeData.storeLocation.lat, lng: routeData.storeLocation.lng } 
             : LUSAKA_DEFAULT}
-          zoom={13}
+          zoom={locationEditMode ? 16 : 13}
           markers={mapMarkers}
           polyline={routePolyline ?? undefined}
           pickupEta={selectedOption?.enabled ? selectedOption.eta : undefined}
           arrivalTime={selectedOption?.enabled ? getArrivalTime() || undefined : undefined}
           fitBounds={mapMarkers.length > 1}
+          onMapIdle={(center) => locationEditMode && setLocationCenter(center)}
+          onEtaBubbleClick={() => {
+            const store = routeData?.storeLocation || LUSAKA_DEFAULT;
+            setLocationEditMode('pickup');
+            setLocationCenter({ lat: store.lat, lng: store.lng });
+          }}
+          onArrivalCardClick={() => {
+            const delivery = routeData?.deliveryCoords || routeData?.destinationCoords || LUSAKA_DEFAULT;
+            setLocationEditMode('destination');
+            setLocationCenter({ lat: delivery.lat, lng: delivery.lng });
+          }}
+          focusCoordinate={locationEditMode ? locationCenter : null}
           className="w-full h-full"
         />
+        {locationEditMode && locationCenter && (
+          <LocationPickerOverlay
+            mode={locationEditMode}
+            initialCoordinate={locationCenter}
+            initialAddress={locationEditMode === 'pickup' ? (routeData?.storeAddress || cart[0]?.storeAddress || 'Store') : deliveryLocation}
+            onCancel={() => setLocationEditMode(null)}
+            onConfirm={(coordinate, address) => {
+              const nextRouteData = {
+                ...routeData,
+                storeLocation: locationEditMode === 'pickup' ? coordinate : routeData?.storeLocation,
+                storeAddress: locationEditMode === 'pickup' ? address : routeData?.storeAddress,
+                deliveryCoords: locationEditMode === 'destination' ? coordinate : routeData?.deliveryCoords,
+                deliveryLocation: locationEditMode === 'destination' ? address : deliveryLocation,
+                timestamp: Date.now(),
+              };
+              localStorage.setItem('FOODIES_ROUTE_DATA', JSON.stringify(nextRouteData));
+              setRouteData(nextRouteData);
+              setLocationEditMode(null);
+              window.setTimeout(() => loadDeliveryOptions(), 700);
+            }}
+          />
+        )}
       </div>
 
       <motion.div
@@ -527,8 +564,8 @@ navigate('/confirm-order', {
           height: panelHeightStyle,
         }}
         initial={{ y: 100, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        transition={{ type: 'spring', damping: 30, stiffness: 260, mass: 0.6 }}
+        animate={{ y: locationEditMode ? '100%' : 0, opacity: locationEditMode ? 0 : 1 }}
+        transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
       >
         {PROMO_ACTIVE && (
           <motion.div

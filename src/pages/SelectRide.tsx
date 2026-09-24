@@ -433,7 +433,7 @@ export const SelectRide: React.FC<SelectRideProps> = ({
           center={pickupCoords?.lat && pickupCoords?.lng 
             ? { lat: pickupCoords.lat, lng: pickupCoords.lng } 
             : LUSAKA_DEFAULT}
-          zoom={13}
+          zoom={locationEditMode ? 16 : 13}
   markers={[...mapMarkers, ...nearbyDrivers]}
   polyline={routePolyline ?? undefined}
           pickupEta={selectedRide?.enabled ? selectedRide.eta : undefined}
@@ -451,7 +451,9 @@ export const SelectRide: React.FC<SelectRideProps> = ({
           focusCoordinate={locationEditMode ? locationCenter : null}
           className="w-full h-full"
         />
+        <AnimatePresence>
         {locationEditMode && (
+          <motion.div key="location-picker" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.35 }}>
           <LocationPickerOverlay
             mode={locationEditMode}
             initialCoordinate={locationCenter || pickupCoords || destinationCoords || LUSAKA_DEFAULT}
@@ -470,7 +472,9 @@ export const SelectRide: React.FC<SelectRideProps> = ({
               }});
             }}
           />
+          </motion.div>
         )}
+        </AnimatePresence>
       </div>
 
       <motion.div
@@ -540,8 +544,8 @@ export const SelectRide: React.FC<SelectRideProps> = ({
           height: panelHeightStyle,
         }}
         initial={{ y: 100, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        transition={{ type: 'spring', damping: 30, stiffness: 260, mass: 0.6 }}
+        animate={{ y: locationEditMode ? '100%' : 0, opacity: locationEditMode ? 0 : 1 }}
+        transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
       >
         <motion.div
           className="bg-[#5B2EFF] text-white w-full px-4 py-3 flex items-center justify-center gap-2 rounded-t-3xl flex-shrink-0 cursor-pointer"
