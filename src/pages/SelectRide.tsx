@@ -74,6 +74,7 @@ export const SelectRide: React.FC<SelectRideProps> = ({
   const [isDragging, setIsDragging] = useState(false);
   const [locationEditMode, setLocationEditMode] = useState<LocationEditMode | null>(null);
   const [locationCenter, setLocationCenter] = useState<LocationCoordinate | null>(null);
+  const [locationEditAddress, setLocationEditAddress] = useState('');
 
   // Read navigation state to determine service type
   const { 
@@ -457,8 +458,9 @@ export const SelectRide: React.FC<SelectRideProps> = ({
           <LocationPickerOverlay
             mode={locationEditMode}
             initialCoordinate={locationCenter || pickupCoords || destinationCoords || LUSAKA_DEFAULT}
-            initialAddress={locationEditMode === 'pickup' ? (navPickup || pickup) : (navDestination || destination)}
-            onCancel={() => setLocationEditMode(null)}
+  initialAddress={locationEditAddress || (locationEditMode === 'pickup' ? (navPickup || pickup) : (navDestination || destination))}
+  onAddressChange={setLocationEditAddress}
+  onCancel={() => { setLocationEditMode(null); setLocationEditAddress(''); }}
             onConfirm={(coordinate, address) => {
               navigate('/your-route', { replace: true, state: {
                 highlightDestination: locationEditMode === 'destination',

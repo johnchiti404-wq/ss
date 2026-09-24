@@ -86,6 +86,7 @@ export function FoodDelivery() {
   const [isDragging, setIsDragging] = useState(false);
   const [locationEditMode, setLocationEditMode] = useState<LocationEditMode | null>(null);
   const [locationCenter, setLocationCenter] = useState<LocationCoordinate | null>(null);
+  const [locationEditAddress, setLocationEditAddress] = useState('');
 
   // Spring-driven panel height for smooth animations
   const rawPanelVh = useMotionValue(PANEL_MIN_HEIGHT);
@@ -497,8 +498,9 @@ navigate('/confirm-order', {
           <LocationPickerOverlay
             mode={locationEditMode}
             initialCoordinate={locationCenter}
-            initialAddress={locationEditMode === 'pickup' ? (routeData?.storeAddress || cart[0]?.storeAddress || 'Store') : deliveryLocation}
-            onCancel={() => setLocationEditMode(null)}
+  initialAddress={locationEditAddress || (locationEditMode === 'pickup' ? (routeData?.storeAddress || cart[0]?.storeAddress || 'Store') : deliveryLocation)}
+  onAddressChange={setLocationEditAddress}
+  onCancel={() => { setLocationEditMode(null); setLocationEditAddress(''); }}
             onConfirm={(coordinate, address) => {
               const nextRouteData = {
                 ...routeData,

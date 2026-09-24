@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { ArrowLeft, MapPin } from 'lucide-react';
 import { reverseGeocode } from '../services/geoapifyService';
 import { ConfirmLocationPanel } from './ConfirmLocationPanel';
@@ -19,6 +19,11 @@ export function LocationPickerOverlay({ mode, initialCoordinate, initialAddress,
   const [address, setAddress] = useState(initialAddress);
   const [coordinate, setCoordinate] = useState(initialCoordinate);
   const [isLoading, setIsLoading] = useState(false);
+  const onAddressChangeRef = useRef(onAddressChange);
+
+  useEffect(() => {
+    onAddressChangeRef.current = onAddressChange;
+  }, [onAddressChange]);
 
   useEffect(() => {
     setCoordinate(initialCoordinate);
@@ -35,12 +40,12 @@ export function LocationPickerOverlay({ mode, initialCoordinate, initialAddress,
       if (!cancelled) {
         const nextAddress = result?.address || formatCoordinateAddress(initialCoordinate);
         setAddress(nextAddress);
-        onAddressChange?.(nextAddress);
+        onAddressChangeRef.current?.(nextAddress);
         setIsLoading(false);
       }
     }, 350);
     return () => { cancelled = true; window.clearTimeout(timer); };
-  }, [initialCoordinate.lat, initialCoordinate.lng, onAddressChange]);
+  }, [initialCoordinate.lat, initialCoordinate.lng]);
 
   const label = mode === 'pickup' ? 'pickup' : 'destination';
 
