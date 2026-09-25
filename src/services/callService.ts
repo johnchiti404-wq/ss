@@ -49,7 +49,7 @@ export async function joinCall(
   });
 
   try {
-    await client.join(tokenResponse.appId || appId || '', tokenResponse.token, uid);
+    await client.join(tokenResponse.appId || appId || '', channelName, tokenResponse.token, uid);
     await client.publish([localAudioTrack]);
   } catch (error) {
     localAudioTrack.close();
