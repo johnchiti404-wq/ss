@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, MapPin, CreditCard as Edit, Phone, Share, CreditCard, X, MessageCircle } from 'lucide-react';
+import { Plus, MapPin, CreditCard as Edit, Phone, Share, CreditCard, X, MessageCircle, Mic, MicOff, PhoneOff } from 'lucide-react';
 import { DraggablePanel } from '../components/DraggablePanel';
 import { ScrollableSection } from '../components/ScrollableSection';
 import { MapLibreMap, MapMarker } from '../components/MapLibreMap';
@@ -18,6 +18,7 @@ import { trimPolylineFromPosition } from '../utils/polylineUtils';
 import { soundManager } from '../utils/notificationSound';
 import { usePreventBack } from '../hooks/usePreventBack';
 import { useGeolocation } from '../hooks/useGeolocation';
+import { joinCall, type ActiveCall } from '../services/callService';
 import { 
   subscribeToOrder, 
   cancelOrder, 
@@ -427,6 +428,52 @@ export const DriverComing: React.FC<DriverComingProps> = ({
   };
 
   const isMessageDisabled = rideStatus === 'pending' || rideStatus === 'completed';
+  const hasAssignedDriver = Boolean(driverInfo?.id || firestoreRideData?.driverId || orderData.driverId);
+  const [isCallConfirmOpen, setIsCallConfirmOpen] = useState(false);
+  const [callStatus, setCallStatus] = useState<'idle' | 'connecting' | 'in-call'>('idle');
+  const [isCallMuted, setIsCallMuted] = useState(false);
+  const activeCallRef = useRef<ActiveCall | null>(null);
+
+  const handleCall = () => {
+    if (hasAssignedDriver && !isMessageDisabled) setIsCallConfirmOpen(true);
+  };
+
+  const handleStartCall = async () => {
+    const riderUid = auth.currentUser?.uid || profile?.id;
+    if (!orderId || !riderUid) return;
+
+    setIsCallConfirmOpen(false);
+    setCallStatus('connecting');
+    setIsCallMuted(false);
+
+    try {
+      activeCallRef.current = await joinCall(`ride_${orderId}`, riderUid, () => {
+        setCallStatus('in-call');
+      });
+      setCallStatus('in-call');
+    } catch (error) {
+      console.error('[v0] Failed to start audio call:', error);
+      setCallStatus('idle');
+      window.alert('Unable to connect the call. Please try again.');
+    }
+  };
+
+  const handleEndCall = async () => {
+    await activeCallRef.current?.leave();
+    activeCallRef.current = null;
+    setCallStatus('idle');
+    setIsCallMuted(false);
+  };
+
+  const handleToggleMute = async () => {
+    const nextMuted = !isCallMuted;
+    await activeCallRef.current?.setMuted(nextMuted);
+    setIsCallMuted(nextMuted);
+  };
+
+  useEffect(() => () => {
+    void activeCallRef.current?.leave();
+  }, []);
 
   // Driver location state for live tracking
   const [driverLocation, setDriverLocation] = useState<{ lat: number; lng: number } | null>(null);
@@ -610,7 +657,7 @@ export const DriverComing: React.FC<DriverComingProps> = ({
                 transition={{ repeat: Infinity, duration: 1, repeatDelay: 4 }}
                 className={`text-sm text-gray-700 dark:text-gray-300 text-center ${rideStatus === 'arrived' || rideStatus === 'in_progress' || rideStatus === 'started' ? 'flex-1 text-left' : 'flex-1'}`}
               >
-                Tap the message icon to chat with your driver
+                Message or call your driver
               </motion.p>
               <motion.button
                 onClick={handleMessageDriver}
@@ -629,6 +676,16 @@ export const DriverComing: React.FC<DriverComingProps> = ({
                     {unreadMessageCount}
                   </motion.span>
                 )}
+              </motion.button>
+              <motion.button
+                onClick={handleCall}
+                disabled={!hasAssignedDriver || isMessageDisabled || callStatus !== 'idle'}
+                whileTap={{ scale: 0.9 }}
+                whileHover={{ scale: 1.05 }}
+                aria-label="Call driver"
+                className={`p-2 rounded-full transition-colors ${!hasAssignedDriver || isMessageDisabled || callStatus !== 'idle' ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-200 dark:hover:bg-gray-700'}`}
+              >
+                <Phone className={`${!hasAssignedDriver || isMessageDisabled ? 'text-gray-400' : 'text-gray-700 dark:text-gray-300'}`} size={24} />
               </motion.button>
             </div>
           </motion.div>
@@ -753,8 +810,38 @@ export const DriverComing: React.FC<DriverComingProps> = ({
         </div>
       </DraggablePanel>
 
-      {/* Cancel Confirmation Modal */}
-      <AnimatePresence>
+  <AnimatePresence>
+    {isCallConfirmOpen && (
+      <motion.div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+        <motion.div className="bg-white dark:bg-gray-800 rounded-2xl p-5 max-w-xs w-full" initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }}>
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white text-center">Call your driver?</h3>
+          <div className="flex gap-3 mt-5">
+            <button onClick={handleStartCall} className="flex-1 rounded-xl bg-green-600 px-4 py-3 font-semibold text-white">Call Driver</button>
+            <button onClick={() => setIsCallConfirmOpen(false)} className="flex-1 rounded-xl bg-red-100 px-4 py-3 font-semibold text-red-700">Cancel</button>
+          </div>
+        </motion.div>
+      </motion.div>
+    )}
+  </AnimatePresence>
+
+  <AnimatePresence>
+    {callStatus !== 'idle' && (
+      <motion.div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 rounded-2xl bg-white dark:bg-gray-800 px-4 py-3 shadow-xl" initial={{ y: 30, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 30, opacity: 0 }}>
+        <span className="text-sm font-medium text-gray-900 dark:text-white">{callStatus === 'connecting' ? 'Calling driver…' : 'In call'}</span>
+        {callStatus === 'in-call' && (
+          <button onClick={handleToggleMute} aria-label={isCallMuted ? 'Unmute microphone' : 'Mute microphone'} className="rounded-full p-2 hover:bg-gray-100 dark:hover:bg-gray-700">
+            {isCallMuted ? <MicOff size={20} /> : <Mic size={20} />}
+          </button>
+        )}
+        <button onClick={() => void handleEndCall()} aria-label="End call" className="rounded-full bg-red-600 p-2 text-white">
+          <PhoneOff size={20} />
+        </button>
+      </motion.div>
+    )}
+  </AnimatePresence>
+
+  {/* Cancel Confirmation Modal */}
+  <AnimatePresence>
         {showCancelConfirmation && (
           <motion.div
             className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
