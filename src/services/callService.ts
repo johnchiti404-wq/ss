@@ -31,8 +31,8 @@ export async function fetchCallToken(channelName: string, uid: string): Promise<
 }
 
 const DIAGNOSTIC_APP_ID = '658f442c574f46268983e329b6515626';
-const DIAGNOSTIC_CHANNEL = 'diagnostic-test-1';
-const DIAGNOSTIC_TOKEN = '007eJxTYHjQtb1rteabue9d15QcMXvmK2EZktopp/HJY9mhDJP7EroKDGamFmkmJkbJpuYmaSZmRmYWlhbGqcZGlklmpoamQP6kl7uyGgIZGV5J2jEyMkAgiC/EkJKZmJ6XX1ySmaxbklpcomuowMAAAC6eI74=';
+const DIAGNOSTIC_CHANNEL = 'KALI';
+const DIAGNOSTIC_TOKEN = '007eJxTYDgYrRD1ySc68ZD35MC+U5ZHN793lpVxbz1zp1blrsXvyEYFBjNTizQTE6NkU3OTNBMzIzMLSwvjVGMjyyQzU0NTIH/qx11ZDYGMDBfjalkYGSAQxGdh8Hb08WRgAABDDB7q';
 
 export async function joinCall(
   channelName: string,
