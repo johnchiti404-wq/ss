@@ -452,9 +452,10 @@ export const DriverComing: React.FC<DriverComingProps> = ({
       });
       setCallStatus('in-call');
     } catch (error) {
-      console.error('[v0] Failed to start audio call:', error);
-      setCallStatus('idle');
-      window.alert('Unable to connect the call. Please try again.');
+  console.error('[v0] Failed to start audio call:', error);
+  setCallStatus('idle');
+  const message = error instanceof Error ? error.message : String(error);
+  window.alert(`Call failed: ${message}`);
     }
   };
 
