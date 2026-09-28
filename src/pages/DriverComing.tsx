@@ -18,7 +18,7 @@ import { trimPolylineFromPosition } from '../utils/polylineUtils';
 import { soundManager } from '../utils/notificationSound';
 import { usePreventBack } from '../hooks/usePreventBack';
 import { useGeolocation } from '../hooks/useGeolocation';
-import { joinCall, type ActiveCall } from '../services/callService';
+import { joinCall, joinDiagnosticCall, type ActiveCall } from '../services/callService';
 import { 
   subscribeToOrder, 
   cancelOrder, 
@@ -433,6 +433,9 @@ export const DriverComing: React.FC<DriverComingProps> = ({
   const [callStatus, setCallStatus] = useState<'idle' | 'connecting' | 'in-call'>('idle');
   const [isCallMuted, setIsCallMuted] = useState(false);
   const activeCallRef = useRef<ActiveCall | null>(null);
+  const [diagnosticStatus, setDiagnosticStatus] = useState<'idle' | 'connecting' | 'connected'>('idle');
+  const [diagnosticError, setDiagnosticError] = useState<string | null>(null);
+  const diagnosticCallRef = useRef<ActiveCall | null>(null);
 
   const handleCall = () => {
     if (hasAssignedDriver && !isMessageDisabled) setIsCallConfirmOpen(true);
@@ -459,6 +462,30 @@ export const DriverComing: React.FC<DriverComingProps> = ({
     }
   };
 
+  const handleDiagnosticCall = async () => {
+    if (diagnosticStatus !== 'idle') return;
+
+    setDiagnosticError(null);
+    setDiagnosticStatus('connecting');
+    try {
+      diagnosticCallRef.current = await joinDiagnosticCall(() => {
+        setDiagnosticStatus('connected');
+      });
+      setDiagnosticStatus('connected');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error('[v0] Diagnostic call failed:', error);
+      setDiagnosticStatus('idle');
+      setDiagnosticError(message);
+    }
+  };
+
+  const handleEndDiagnosticCall = async () => {
+    await diagnosticCallRef.current?.leave();
+    diagnosticCallRef.current = null;
+    setDiagnosticStatus('idle');
+  };
+
   const handleEndCall = async () => {
     await activeCallRef.current?.leave();
     activeCallRef.current = null;
@@ -474,6 +501,7 @@ export const DriverComing: React.FC<DriverComingProps> = ({
 
   useEffect(() => () => {
     void activeCallRef.current?.leave();
+    void diagnosticCallRef.current?.leave();
   }, []);
 
   // Driver location state for live tracking
@@ -690,6 +718,26 @@ export const DriverComing: React.FC<DriverComingProps> = ({
               </motion.button>
             </div>
           </motion.div>
+
+          <div className="mt-3 flex flex-col items-center gap-2">
+            <button
+              type="button"
+              onClick={diagnosticStatus === 'connected' ? () => void handleEndDiagnosticCall() : handleDiagnosticCall}
+              disabled={diagnosticStatus === 'connecting'}
+              className="rounded-lg border border-amber-500 px-3 py-2 text-xs font-semibold text-amber-700 disabled:opacity-50"
+            >
+              {diagnosticStatus === 'connecting'
+                ? 'Connecting...'
+                : diagnosticStatus === 'connected'
+                  ? 'Connected — End Diagnostic Test'
+                  : 'Diagnostic Call Test'}
+            </button>
+            {diagnosticError && (
+              <p className="max-w-sm text-center text-xs text-red-600" role="alert">
+                {diagnosticError}
+              </p>
+            )}
+          </div>
 
           <ScrollableSection maxHeight="max-h-[420px]">
             <div className="space-y-6 pb-4">
