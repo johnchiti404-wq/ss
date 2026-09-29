@@ -45,6 +45,7 @@ import { useFirebaseRide } from './hooks/useFirebaseRide';
 import { firebaseService } from './services/firebaseService';
 import { getETA } from './utils/etaCalculation';
 import { useNotificationPermission } from './hooks/useNotificationPermission';
+import { CallProvider } from './contexts/CallContext';
 
 interface AppState {
   selectedDestination: string;
@@ -534,7 +535,7 @@ function App() {
           style={{ minHeight: '100vh' }}
         >
           <Router>
-            <AppContent userId={authUser!.uid} />
+            <CallProvider><AppContent userId={authUser!.uid} /></CallProvider>
           </Router>
         </motion.div>
       ) : (

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, MapPin, CreditCard as Edit, Phone, Share, CreditCard, X, MessageCircle, Mic, MicOff, PhoneOff } from 'lucide-react';
+import { Plus, MapPin, CreditCard as Edit, Phone, Share, CreditCard, X, MessageCircle } from 'lucide-react';
+import { useCall } from '../contexts/CallContext';
 import { DraggablePanel } from '../components/DraggablePanel';
 import { ScrollableSection } from '../components/ScrollableSection';
 import { MapLibreMap, MapMarker } from '../components/MapLibreMap';
@@ -18,7 +19,6 @@ import { trimPolylineFromPosition } from '../utils/polylineUtils';
 import { soundManager } from '../utils/notificationSound';
 import { usePreventBack } from '../hooks/usePreventBack';
 import { useGeolocation } from '../hooks/useGeolocation';
-import { joinCall, joinDiagnosticCall, type ActiveCall } from '../services/callService';
 import { 
   subscribeToOrder, 
   cancelOrder, 
@@ -429,80 +429,12 @@ export const DriverComing: React.FC<DriverComingProps> = ({
 
   const isMessageDisabled = rideStatus === 'pending' || rideStatus === 'completed';
   const hasAssignedDriver = Boolean(driverInfo?.id || firestoreRideData?.driverId || orderData.driverId);
+  const { callState, startCall } = useCall();
   const [isCallConfirmOpen, setIsCallConfirmOpen] = useState(false);
-  const [callStatus, setCallStatus] = useState<'idle' | 'connecting' | 'in-call'>('idle');
-  const [isCallMuted, setIsCallMuted] = useState(false);
-  const activeCallRef = useRef<ActiveCall | null>(null);
-  const [diagnosticStatus, setDiagnosticStatus] = useState<'idle' | 'connecting' | 'connected'>('idle');
-  const [diagnosticError, setDiagnosticError] = useState<string | null>(null);
-  const diagnosticCallRef = useRef<ActiveCall | null>(null);
 
   const handleCall = () => {
-    if (hasAssignedDriver && !isMessageDisabled) setIsCallConfirmOpen(true);
+    if (hasAssignedDriver && !isMessageDisabled && callState === 'idle') setIsCallConfirmOpen(true);
   };
-
-  const handleStartCall = async () => {
-    const riderUid = auth.currentUser?.uid || profile?.id;
-    if (!orderId || !riderUid) return;
-
-    setIsCallConfirmOpen(false);
-    setCallStatus('connecting');
-    setIsCallMuted(false);
-
-    try {
-      activeCallRef.current = await joinCall(`ride_${orderId}`, riderUid, () => {
-        setCallStatus('in-call');
-      });
-      setCallStatus('in-call');
-    } catch (error) {
-  console.error('[v0] Failed to start audio call:', error);
-  setCallStatus('idle');
-  const message = error instanceof Error ? error.message : String(error);
-  window.alert(`Call failed: ${message}`);
-    }
-  };
-
-  const handleDiagnosticCall = async () => {
-    if (diagnosticStatus !== 'idle') return;
-
-    setDiagnosticError(null);
-    setDiagnosticStatus('connecting');
-    try {
-      diagnosticCallRef.current = await joinDiagnosticCall(() => {
-        setDiagnosticStatus('connected');
-      });
-      setDiagnosticStatus('connected');
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      console.error('[v0] Diagnostic call failed:', error);
-      setDiagnosticStatus('idle');
-      setDiagnosticError(message);
-    }
-  };
-
-  const handleEndDiagnosticCall = async () => {
-    await diagnosticCallRef.current?.leave();
-    diagnosticCallRef.current = null;
-    setDiagnosticStatus('idle');
-  };
-
-  const handleEndCall = async () => {
-    await activeCallRef.current?.leave();
-    activeCallRef.current = null;
-    setCallStatus('idle');
-    setIsCallMuted(false);
-  };
-
-  const handleToggleMute = async () => {
-    const nextMuted = !isCallMuted;
-    await activeCallRef.current?.setMuted(nextMuted);
-    setIsCallMuted(nextMuted);
-  };
-
-  useEffect(() => () => {
-    void activeCallRef.current?.leave();
-    void diagnosticCallRef.current?.leave();
-  }, []);
 
   // Driver location state for live tracking
   const [driverLocation, setDriverLocation] = useState<{ lat: number; lng: number } | null>(null);
@@ -708,36 +640,17 @@ export const DriverComing: React.FC<DriverComingProps> = ({
               </motion.button>
               <motion.button
                 onClick={handleCall}
-                disabled={!hasAssignedDriver || isMessageDisabled || callStatus !== 'idle'}
+                disabled={!hasAssignedDriver || isMessageDisabled || callState !== 'idle'}
                 whileTap={{ scale: 0.9 }}
                 whileHover={{ scale: 1.05 }}
                 aria-label="Call driver"
-                className={`p-2 rounded-full transition-colors ${!hasAssignedDriver || isMessageDisabled || callStatus !== 'idle' ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-200 dark:hover:bg-gray-700'}`}
+                className={`p-2 rounded-full transition-colors ${!hasAssignedDriver || isMessageDisabled || callState !== 'idle' ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-200 dark:hover:bg-gray-700'}`}
               >
-                <Phone className={`${!hasAssignedDriver || isMessageDisabled ? 'text-gray-400' : 'text-gray-700 dark:text-gray-300'}`} size={24} />
+                <Phone className={`${!hasAssignedDriver || isMessageDisabled ? 'text-gray-400' : callState !== 'idle' ? 'text-emerald-600 animate-pulse' : 'text-gray-700 dark:text-gray-300'}`} size={24} />
               </motion.button>
             </div>
           </motion.div>
 
-          <div className="mt-3 flex flex-col items-center gap-2">
-            <button
-              type="button"
-              onClick={diagnosticStatus === 'connected' ? () => void handleEndDiagnosticCall() : handleDiagnosticCall}
-              disabled={diagnosticStatus === 'connecting'}
-              className="rounded-lg border border-amber-500 px-3 py-2 text-xs font-semibold text-amber-700 disabled:opacity-50"
-            >
-              {diagnosticStatus === 'connecting'
-                ? 'Connecting...'
-                : diagnosticStatus === 'connected'
-                  ? 'Connected — End Diagnostic Test'
-                  : 'Diagnostic Call Test'}
-            </button>
-            {diagnosticError && (
-              <p className="max-w-sm text-center text-xs text-red-600" role="alert">
-                {diagnosticError}
-              </p>
-            )}
-          </div>
 
           <ScrollableSection maxHeight="max-h-[420px]">
             <div className="space-y-6 pb-4">
@@ -865,26 +778,10 @@ export const DriverComing: React.FC<DriverComingProps> = ({
         <motion.div className="bg-white dark:bg-gray-800 rounded-2xl p-5 max-w-xs w-full" initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }}>
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white text-center">Call your driver?</h3>
           <div className="flex gap-3 mt-5">
-            <button onClick={handleStartCall} className="flex-1 rounded-xl bg-green-600 px-4 py-3 font-semibold text-white">Call Driver</button>
+            <button onClick={() => { setIsCallConfirmOpen(false); if (orderId) void startCall(orderId); }} className="flex-1 rounded-xl bg-green-600 px-4 py-3 font-semibold text-white">Call Driver</button>
             <button onClick={() => setIsCallConfirmOpen(false)} className="flex-1 rounded-xl bg-red-100 px-4 py-3 font-semibold text-red-700">Cancel</button>
           </div>
         </motion.div>
-      </motion.div>
-    )}
-  </AnimatePresence>
-
-  <AnimatePresence>
-    {callStatus !== 'idle' && (
-      <motion.div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 rounded-2xl bg-white dark:bg-gray-800 px-4 py-3 shadow-xl" initial={{ y: 30, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 30, opacity: 0 }}>
-        <span className="text-sm font-medium text-gray-900 dark:text-white">{callStatus === 'connecting' ? 'Calling driver…' : 'In call'}</span>
-        {callStatus === 'in-call' && (
-          <button onClick={handleToggleMute} aria-label={isCallMuted ? 'Unmute microphone' : 'Mute microphone'} className="rounded-full p-2 hover:bg-gray-100 dark:hover:bg-gray-700">
-            {isCallMuted ? <MicOff size={20} /> : <Mic size={20} />}
-          </button>
-        )}
-        <button onClick={() => void handleEndCall()} aria-label="End call" className="rounded-full bg-red-600 p-2 text-white">
-          <PhoneOff size={20} />
-        </button>
       </motion.div>
     )}
   </AnimatePresence>

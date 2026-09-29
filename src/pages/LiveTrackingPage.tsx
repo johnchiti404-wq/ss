@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Phone, MessageCircle, MapPin, Star, Package, Home, Navigation, Mic, MicOff, PhoneOff } from 'lucide-react';
+import { Phone, MessageCircle, MapPin, Star, Package, Home, Navigation } from 'lucide-react';
+import { useCall } from '../contexts/CallContext';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { db } from '../config/firebase';
 import { doc, onSnapshot } from 'firebase/firestore';
@@ -16,7 +17,6 @@ import { auth } from '../config/firebase';
 import { soundManager } from '../utils/notificationSound';
 import { usePreventBack } from '../hooks/usePreventBack';
 import { useGeolocation } from '../hooks/useGeolocation';
-import { joinCall, type ActiveCall } from '../services/callService';
 
 interface OrderItem {
   name: string;
@@ -162,6 +162,7 @@ export const LiveTrackingPage: React.FC = () => {
   const { orderId, orderData: initialOrderData } = location.state || {};
   const { clearCart } = useGlobalCart();
   const { profile } = useUserProfile(auth.currentUser?.uid);
+  const { callState, formattedTime, startCall } = useCall();
   const { latitude, longitude } = useGeolocation();
   const { unreadMessageCount, markMessagesAsRead } = useMessageContext();
 
@@ -171,9 +172,6 @@ export const LiveTrackingPage: React.FC = () => {
   const [isDriverLoading, setIsDriverLoading] = useState<boolean>(true);
   const [driverLocation, setDriverLocation] = useState<DriverLocation | null>(null);
   const [isCallConfirmOpen, setIsCallConfirmOpen] = useState(false);
-  const [callStatus, setCallStatus] = useState<'idle' | 'connecting' | 'in-call'>('idle');
-  const [isCallMuted, setIsCallMuted] = useState(false);
-  const activeCallRef = useRef<ActiveCall | null>(null);
   const [statusTitle, setStatusTitle] = useState<string>('Driver is on the way');
   const [statusSubtitle, setStatusSubtitle] = useState<string>('Tracking your delivery');
   const [showRatingModal, setShowRatingModal] = useState<boolean>(false);
@@ -450,44 +448,6 @@ export const LiveTrackingPage: React.FC = () => {
     }
   };
 
-  const handleStartCall = async () => {
-    const riderUid = auth.currentUser?.uid || profile?.id;
-    if (!orderId || !riderUid) return;
-
-    setIsCallConfirmOpen(false);
-    setCallStatus('connecting');
-    setIsCallMuted(false);
-
-    try {
-      activeCallRef.current = await joinCall(`ride_${orderId}`, riderUid, () => {
-        setCallStatus('in-call');
-      });
-      setCallStatus('in-call');
-    } catch (error) {
-  console.error('[v0] Failed to start audio call:', error);
-  setCallStatus('idle');
-  const message = error instanceof Error ? error.message : String(error);
-  window.alert(`Call failed: ${message}`);
-    }
-  };
-
-  const handleEndCall = async () => {
-    await activeCallRef.current?.leave();
-    activeCallRef.current = null;
-    setCallStatus('idle');
-    setIsCallMuted(false);
-  };
-
-  const handleToggleMute = async () => {
-    const nextMuted = !isCallMuted;
-    await activeCallRef.current?.setMuted(nextMuted);
-    setIsCallMuted(nextMuted);
-  };
-
-  useEffect(() => () => {
-    void activeCallRef.current?.leave();
-  }, []);
-
   const handleMessage = async () => {
     setIsMessagePanelOpen(true);
     await markMessagesAsRead();
@@ -667,12 +627,12 @@ export const LiveTrackingPage: React.FC = () => {
                     whileTap={{ scale: 0.9 }}
                     whileHover={{ scale: 1.05 }}
                     onClick={handleCall}
-                    disabled={!driverData?.id && !driverData?.uid && !orderData.driverId}
+                    disabled={callState !== 'idle' || (!driverData?.id && !driverData?.uid && !orderData.driverId)}
                     aria-label="Call driver"
-                    className="flex h-11 items-center gap-2 rounded-full bg-[#5B2EFF] px-4 text-sm font-semibold text-white shadow-lg transition-colors hover:bg-[#4A24D9] disabled:cursor-not-allowed disabled:opacity-50"
+                    className={`flex h-11 items-center gap-2 rounded-full px-4 text-sm font-semibold text-white shadow-lg transition-colors disabled:cursor-not-allowed disabled:opacity-70 ${callState === 'in-call' ? 'bg-emerald-600' : 'bg-[#5B2EFF] hover:bg-[#4A24D9]'}`}
                   >
-                    <Phone size={18} />
-                    <span>Call driver</span>
+                    <Phone size={18} className={callState === 'calling' ? 'animate-pulse' : ''} />
+                    <span>{callState === 'calling' ? 'Calling…' : callState === 'in-call' ? `In call · ${formattedTime}` : 'Call driver'}</span>
                   </motion.button>
                   <motion.button
                     whileTap={{ scale: 0.9 }}
@@ -786,26 +746,12 @@ export const LiveTrackingPage: React.FC = () => {
               <p className="mt-1 text-sm text-gray-500 dark:text-gray-300">Start a private audio call with {driverData?.name || 'your driver'}.</p>
               <div className="mt-5 flex gap-3">
                 <button type="button" onClick={() => setIsCallConfirmOpen(false)} className="flex-1 rounded-xl bg-red-100 px-4 py-3 font-semibold text-red-700 dark:bg-red-900/30 dark:text-red-200">Cancel</button>
-                <button type="button" onClick={() => void handleStartCall()} className="flex-1 rounded-xl bg-emerald-600 px-4 py-3 font-semibold text-white">Call Driver</button>
+                <button type="button" onClick={() => { setIsCallConfirmOpen(false); if (orderId) void startCall(orderId); }} className="flex-1 rounded-xl bg-emerald-600 px-4 py-3 font-semibold text-white">Call Driver</button>
               </div>
             </motion.div>
           </motion.div>
         )}
-        {callStatus !== 'idle' && (
-          <motion.div className="fixed bottom-6 left-1/2 z-40 flex -translate-x-1/2 items-center gap-3 rounded-2xl bg-gray-900 px-4 py-3 text-white shadow-xl" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
-            <span className="text-sm font-semibold">{callStatus === 'connecting' ? 'Calling driver…' : 'In call'}</span>
-            {callStatus === 'in-call' && (
-              <button type="button" onClick={() => void handleToggleMute()} aria-label={isCallMuted ? 'Unmute microphone' : 'Mute microphone'} className="rounded-full bg-gray-700 p-2">
-                {isCallMuted ? <MicOff size={18} /> : <Mic size={18} />}
-              </button>
-            )}
-            {callStatus === 'in-call' && (
-              <button type="button" onClick={() => void handleEndCall()} className="flex items-center gap-1 rounded-full bg-red-600 px-3 py-2 text-sm font-semibold">
-                <PhoneOff size={16} /> End Call
-              </button>
-            )}
-          </motion.div>
-        )}
+
       </AnimatePresence>
 
       {/* Rating Modal - shown when status becomes "completed" */}
