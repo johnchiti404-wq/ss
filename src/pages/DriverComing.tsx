@@ -643,10 +643,11 @@ export const DriverComing: React.FC<DriverComingProps> = ({
                 disabled={!hasAssignedDriver || isMessageDisabled || callState !== 'idle'}
                 whileTap={{ scale: 0.9 }}
                 whileHover={{ scale: 1.05 }}
-                aria-label="Call driver"
-                className={`p-2 rounded-full transition-colors ${!hasAssignedDriver || isMessageDisabled || callState !== 'idle' ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-200 dark:hover:bg-gray-700'}`}
+                aria-label={callState === 'calling' ? 'Calling driver' : callState === 'in-call' ? 'In call' : 'Call driver'}
+                className={`flex items-center gap-1 rounded-full px-2 py-2 text-xs transition-colors ${!hasAssignedDriver || isMessageDisabled || callState !== 'idle' ? 'cursor-not-allowed opacity-50' : 'hover:bg-gray-200 dark:hover:bg-gray-700'}`}
               >
-                <Phone className={`${!hasAssignedDriver || isMessageDisabled ? 'text-gray-400' : callState !== 'idle' ? 'text-emerald-600 animate-pulse' : 'text-gray-700 dark:text-gray-300'}`} size={24} />
+                <Phone className={callState === 'calling' || callState === 'in-call' ? 'animate-pulse text-emerald-600' : 'text-gray-700 dark:text-gray-300'} size={24} />
+                <span>{callState === 'calling' ? 'Calling…' : callState === 'in-call' ? 'In call' : 'Call driver'}</span>
               </motion.button>
             </div>
           </motion.div>

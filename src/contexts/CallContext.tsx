@@ -1,14 +1,15 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { onAuthStateChanged } from 'firebase/auth';
 import { onValue, ref } from 'firebase/database';
 import { auth, database } from '../config/firebase';
-import { acceptCall, declineCall, endCall, joinChannel, startCall, type ActiveCall, type CallCredentials } from '../services/callService';
+import { acceptCall, declineCall, endCall as apiEndCall, joinChannel, startCall as apiStartCall, type ActiveCall, type CallCredentials } from '../services/callService';
 import { CallOverlay } from '../components/CallOverlay';
 
 type CallState = 'idle' | 'calling' | 'ringing' | 'in-call' | 'ended';
-type CallSnapshot = { callId: string; orderId: string; channel: string; direction: 'incoming' | 'outgoing'; peerName?: string; status: 'ringing' | 'active' | 'ended' | 'declined' | 'missed'; expiresAt?: number; startedAt?: number; };
+type CallSnapshot = { callId: string; orderId: string; channel: string; direction: 'incoming' | 'outgoing'; peerName?: string; status: 'ringing' | 'active' | 'ended' | 'declined' | 'missed' | 'cancelled' | 'trip_ended'; expiresAt?: number; startedAt?: number; durationSeconds?: number; };
 type CallContextValue = { callState: CallState; peerName: string; elapsedSeconds: number; formattedTime: string; isMuted: boolean; endedMessage: string | null; startCall: (orderId: string) => Promise<void>; answerCall: () => Promise<void>; declineCall: () => Promise<void>; endCall: () => Promise<void>; toggleMute: () => Promise<void>; };
 const CallContext = createContext<CallContextValue | null>(null);
-const terminal = new Set(['ended', 'declined', 'missed']);
+const terminal = new Set(['ended', 'declined', 'missed', 'cancelled', 'trip_ended']);
 const formatTime = (seconds: number) => { const s = Math.max(0, seconds); const h = Math.floor(s / 3600); const m = Math.floor((s % 3600) / 60).toString().padStart(2, '0'); const rest = (s % 60).toString().padStart(2, '0'); return h ? `${h}:${m}:${rest}` : `${m}:${rest}`; };
 
 export function CallProvider({ children }: { children: React.ReactNode }) {
@@ -20,13 +21,43 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
   const [snapshot, setSnapshot] = useState<CallSnapshot | null>(null);
   const offsetRef = useRef(0);
   const activeRef = useRef<ActiveCall | null>(null);
+  const snapshotRef = useRef<CallSnapshot | null>(null);
+  const callStateRef = useRef<CallState>('idle');
+  const activeCallIdRef = useRef<string | null>(null);
   const seenRef = useRef(false);
+  const endingRef = useRef(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const ringTimerRef = useRef<number | null>(null);
+  const endedTimerRef = useRef<number | null>(null);
 
-  const stopAudio = useCallback(() => { audioRef.current?.pause(); if (audioRef.current) audioRef.current.currentTime = 0; if (ringTimerRef.current) window.clearTimeout(ringTimerRef.current); }, []);
-  const leaveAgora = useCallback(async () => { await activeRef.current?.leave(); activeRef.current = null; }, []);
-  const showEnded = useCallback((message: string) => { setEndedMessage(message); window.setTimeout(() => setEndedMessage(null), 2500); }, []);
+  useEffect(() => { callStateRef.current = callState; }, [callState]);
+  useEffect(() => { snapshotRef.current = snapshot; }, [snapshot]);
+
+  const stopAudio = useCallback(() => { audioRef.current?.pause(); if (audioRef.current) audioRef.current.currentTime = 0; if (ringTimerRef.current !== null) { window.clearTimeout(ringTimerRef.current); ringTimerRef.current = null; } }, []);
+  const leaveAgora = useCallback(async () => { await activeRef.current?.leave().catch(() => undefined); activeRef.current = null; }, []);
+
+  const finishCall = useCallback(async (message: string) => {
+    endingRef.current = true;
+    stopAudio();
+    await leaveAgora();
+    setElapsedSeconds(0);
+    setIsMuted(false);
+    setSnapshot(null);
+    snapshotRef.current = null;
+    seenRef.current = false;
+    setCallState('ended');
+    setEndedMessage(message);
+    if (endedTimerRef.current !== null) window.clearTimeout(endedTimerRef.current);
+    endedTimerRef.current = window.setTimeout(() => { setCallState('idle'); setEndedMessage(null); setPeerName('Driver'); endingRef.current = false; activeCallIdRef.current = null; }, 2500);
+  }, [leaveAgora, stopAudio]);
+
+  const messageForTerminal = useCallback((next: CallSnapshot) => {
+    if (next.status === 'declined') return 'Call declined';
+    if (next.status === 'missed') return 'No answer';
+    if (next.status === 'trip_ended') return 'Trip ended';
+    if ((next.durationSeconds || 0) > 0 || next.startedAt) return `Call ended · ${formatTime(next.durationSeconds || Math.max(0, Math.floor(((Date.now() + offsetRef.current) - (next.startedAt || Date.now())) / 1000)))}`;
+    return next.direction === 'outgoing' ? 'Call cancelled' : 'Missed call';
+  }, []);
 
   useEffect(() => {
     const unlock = () => { try { const audio = audioRef.current || new Audio('/sounds/call.mp3'); audioRef.current = audio; audio.loop = true; void audio.play().then(() => { audio.pause(); audio.currentTime = 0; }); } catch { /* optional ringtone */ } };
@@ -35,28 +66,56 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    const user = auth.currentUser;
-    if (!user) return;
-    const offsetUnsub = onValue(ref(database, '.info/serverTimeOffset'), snap => { offsetRef.current = Number(snap.val() || 0); });
-    const unsub = onValue(ref(database, `user_calls/${user.uid}`), snap => {
-      const next = snap.val() as CallSnapshot | null;
-      if (!next || terminal.has(next.status)) { if (seenRef.current && next?.status) { stopAudio(); void leaveAgora(); showEnded(next?.status === 'declined' ? 'Call declined' : next?.status === 'missed' ? 'No answer' : 'Call ended'); setCallState('ended'); } return; }
-      if (next.expiresAt && Date.now() + offsetRef.current >= next.expiresAt) return;
-      if (callState === 'in-call' && next.direction === 'incoming') return;
-      seenRef.current = true; setSnapshot(next); setPeerName(next.peerName || 'Driver');
-      if (next.status === 'ringing') { setCallState(next.direction === 'incoming' ? 'ringing' : 'calling'); if (next.direction === 'incoming') { try { const audio = audioRef.current || new Audio('/sounds/call.mp3'); audioRef.current = audio; audio.loop = true; void audio.play().catch(() => undefined); } catch { /* optional ringtone */ } } }
-      if (next.status === 'active') { stopAudio(); setCallState('in-call'); }
+    let unsubscribeUser = () => undefined;
+    const unsubscribeAuth = onAuthStateChanged(auth, user => {
+      unsubscribeUser();
+      if (!user) return;
+      const offsetUnsub = onValue(ref(database, '.info/serverTimeOffset'), snap => { offsetRef.current = Number(snap.val() || 0); });
+      const callsUnsub = onValue(ref(database, `user_calls/${user.uid}`), snap => {
+        const next = snap.val() as CallSnapshot | null;
+        const current = snapshotRef.current;
+        const activeId = activeCallIdRef.current;
+        if (!next) return;
+        if (!current && terminal.has(next.status)) return;
+        if (activeId && next.callId !== activeId) return;
+        if (callStateRef.current !== 'idle' && activeId && next.callId !== activeId) return;
+        if (next.expiresAt && Date.now() + offsetRef.current >= next.expiresAt && !terminal.has(next.status)) return;
+        if (terminal.has(next.status)) {
+          if (seenRef.current && (!activeId || next.callId === activeId)) void finishCall(messageForTerminal(next));
+          return;
+        }
+        if (callStateRef.current === 'in-call' && next.direction === 'incoming') return;
+        activeCallIdRef.current = next.callId;
+        seenRef.current = true;
+        setSnapshot(next);
+        setPeerName(next.peerName || 'Driver');
+        if (next.status === 'ringing') {
+          setCallState(next.direction === 'incoming' ? 'ringing' : 'calling');
+          if (next.direction === 'incoming') { try { const audio = audioRef.current || new Audio('/sounds/call.mp3'); audioRef.current = audio; audio.loop = true; void audio.play().catch(() => undefined); } catch { /* optional ringtone */ } }
+          if (next.direction === 'outgoing' && next.expiresAt && ringTimerRef.current === null) {
+            const delay = Math.max(0, next.expiresAt - (Date.now() + offsetRef.current));
+            ringTimerRef.current = window.setTimeout(async () => { ringTimerRef.current = null; const latest = snapshotRef.current; if (latest?.callId === next.callId && latest.status === 'ringing') { await apiEndCall(next.callId, 'no_answer').catch(() => undefined); await finishCall('No answer'); } }, delay);
+          }
+        }
+        if (next.status === 'active') { stopAudio(); if (ringTimerRef.current !== null) { window.clearTimeout(ringTimerRef.current); ringTimerRef.current = null; } setCallState('in-call'); }
+      });
+      unsubscribeUser = () => { offsetUnsub(); callsUnsub(); };
     });
-    return () => { offsetUnsub(); unsub(); };
-  }, [callState, leaveAgora, showEnded, stopAudio]);
+    return () => { unsubscribeUser(); unsubscribeAuth(); };
+  }, [finishCall, messageForTerminal, stopAudio]);
 
   useEffect(() => { if (callState !== 'in-call' || !snapshot?.startedAt) return; const timer = window.setInterval(() => setElapsedSeconds(Math.floor((Date.now() + offsetRef.current - snapshot.startedAt!) / 1000)), 1000); return () => window.clearInterval(timer); }, [callState, snapshot?.startedAt]);
 
   const connect = useCallback(async (credentials: CallCredentials) => { activeRef.current = await joinChannel(credentials, () => setCallState('in-call')); }, []);
-  const start = useCallback(async (orderId: string) => { setCallState('calling'); setEndedMessage(null); const credentials = await startCall(orderId); setSnapshot({ ...credentials, callId: credentials.callId || '', orderId, direction: 'outgoing', status: 'ringing' }); await connect(credentials); }, [connect]);
-  const answer = useCallback(async () => { if (!snapshot?.callId) return; stopAudio(); const credentials = await acceptCall(snapshot.callId); await connect(credentials); }, [connect, snapshot, stopAudio]);
-  const decline = useCallback(async () => { if (snapshot?.callId) await declineCall(snapshot.callId); stopAudio(); setCallState('idle'); setSnapshot(null); }, [snapshot, stopAudio]);
-  const end = useCallback(async () => { if (snapshot?.callId) await endCall(snapshot.callId); stopAudio(); await leaveAgora(); setCallState('idle'); setSnapshot(null); setElapsedSeconds(0); }, [leaveAgora, snapshot, stopAudio]);
+  const start = useCallback(async (orderId: string) => {
+    if (endingRef.current || callStateRef.current !== 'idle') return;
+    endingRef.current = true; setCallState('calling'); callStateRef.current = 'calling'; setEndedMessage(null); setElapsedSeconds(0); setIsMuted(false); seenRef.current = true;
+    let credentials: CallCredentials | null = null;
+    try { credentials = await apiStartCall(orderId); activeCallIdRef.current = credentials.callId || null; const next = { ...credentials, callId: credentials.callId || '', orderId, direction: 'outgoing' as const, status: 'ringing' as const }; setSnapshot(next); snapshotRef.current = next; setPeerName('Driver'); await connect(credentials); endingRef.current = false; } catch (error) { if (credentials?.callId) await apiEndCall(credentials.callId).catch(() => undefined); const raw = error instanceof Error ? error.message : String(error); const message = /permission|microphone|notallowed|denied/i.test(raw) ? 'Microphone access is blocked. Allow it in the browser and try again.' : raw; await finishCall(message); }
+  }, [connect, finishCall]);
+  const answer = useCallback(async () => { if (endingRef.current || !snapshotRef.current?.callId) return; endingRef.current = true; const current = snapshotRef.current; activeCallIdRef.current = current.callId; seenRef.current = true; try { stopAudio(); const credentials = await acceptCall(current.callId); await connect(credentials); endingRef.current = false; } catch (error) { await finishCall(error instanceof Error ? error.message : String(error)); } }, [connect, finishCall, stopAudio]);
+  const decline = useCallback(async () => { if (endingRef.current || !snapshotRef.current?.callId) return; endingRef.current = true; const id = snapshotRef.current.callId; await declineCall(id).catch(() => undefined); await finishCall('Call declined'); }, [finishCall]);
+  const end = useCallback(async () => { if (endingRef.current || !snapshotRef.current?.callId) return; endingRef.current = true; const current = snapshotRef.current; const message = current.startedAt || callStateRef.current === 'in-call' ? `Call ended · ${formatTime(elapsedSeconds)}` : 'Call cancelled'; await apiEndCall(current.callId).catch(() => undefined); await finishCall(message); }, [elapsedSeconds, finishCall]);
   const mute = useCallback(async () => { const next = !isMuted; await activeRef.current?.setMuted(next); setIsMuted(next); }, [isMuted]);
   const value = useMemo(() => ({ callState, peerName, elapsedSeconds, formattedTime: formatTime(elapsedSeconds), isMuted, endedMessage, startCall: start, answerCall: answer, declineCall: decline, endCall: end, toggleMute: mute }), [answer, callState, decline, elapsedSeconds, end, endedMessage, isMuted, mute, peerName, start]);
   return <CallContext.Provider value={value}><>{children}<CallOverlay /></></CallContext.Provider>;
