@@ -32,11 +32,21 @@ export const fetchProductsByStore = async (storeId: string): Promise<Product[]> 
   const productsRef = collection(db, 'stores', storeId, 'products');
   const snapshot = await getDocs(productsRef);
   
-  const products = snapshot.docs.map(doc => ({
-    id: doc.id,
-    ...doc.data()
-  })) as Product[];
-  
+  const products = snapshot.docs.map(doc => {
+    const data = doc.data();
+    const imageUrls = Array.isArray(data.imageUrls)
+      ? data.imageUrls.filter((image): image is string => typeof image === 'string')
+      : undefined;
+
+    return {
+      id: doc.id,
+      ...data,
+      categoryKey: typeof data.categoryKey === 'string' ? data.categoryKey : undefined,
+      imageUrls,
+      availability: typeof data.availability === 'boolean' ? data.availability : undefined,
+    } as Product;
+  });
+
   return products;
 };
 

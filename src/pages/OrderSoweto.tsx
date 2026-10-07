@@ -5,16 +5,29 @@ import { ArrowLeft, Minus, Plus, ShoppingCart } from 'lucide-react';
 import { useGlobalCart } from '../contexts/GlobalCartContext';
 import { CrossStoreModal } from '../components/CrossStoreModal';
 import { fetchProductsByStore, fetchStoreById } from '../services/storeService';
-import { Product } from '../data/storesData';
+import { buildAvailableTabs, Product } from '../data/storesData';
 
-type FoodTab = { label: string; value: NonNullable<Product['foodCategory']> };
+type MarketTab = { label: string; value: string };
 
-const tabs: FoodTab[] = [
-  { label: 'Dry Food', value: 'dry_food' },
-  { label: 'Fruits', value: 'fruits' },
-  { label: 'Utensils', value: 'utensils' },
+const marketTabDefinitions: MarketTab[] = [
   { label: 'Vegetables', value: 'vegetables' },
+  { label: 'Fruits', value: 'fruits' },
+  { label: 'Dry Food', value: 'dry_food' },
+  { label: 'Utensils', value: 'utensils' },
+  { label: 'Baskets & Buckets', value: 'baskets_buckets' },
+  { label: 'Shoes', value: 'shoes' },
+  { label: 'Garden Items', value: 'garden' },
+  { label: 'Household Items', value: 'household' },
+  { label: 'Drinks', value: 'drinks' },
+  { label: 'Other', value: 'other' },
 ];
+
+const marketCategoryKeys = new Set(marketTabDefinitions.map(tab => tab.value));
+
+const getMarketCategoryKey = (product: Product): string => {
+  const key = product.foodCategory?.trim().toLowerCase();
+  return key && marketCategoryKeys.has(key) ? key : 'other';
+};
 
 export const OrderSoweto: React.FC = () => {
   const { storeId } = useParams<{ storeId: string }>();
@@ -23,7 +36,7 @@ export const OrderSoweto: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [storeName, setStoreName] = useState('');
   const [storeAddress, setStoreAddress] = useState('');
-  const [selectedTab, setSelectedTab] = useState<FoodTab['value']>('dry_food');
+  const [selectedTab, setSelectedTab] = useState('');
   const [loading, setLoading] = useState(true);
   const [pendingProduct, setPendingProduct] = useState<Product | null>(null);
 
@@ -52,9 +65,23 @@ export const OrderSoweto: React.FC = () => {
     void loadStore();
   }, [storeId, navigate]);
 
+  const availableTabs = useMemo(
+    () => buildAvailableTabs(products, marketTabDefinitions, getMarketCategoryKey),
+    [products],
+  );
+  const activeTab = availableTabs.some(tab => tab.value === selectedTab)
+    ? selectedTab
+    : availableTabs[0]?.value ?? '';
+
+  useEffect(() => {
+    if (availableTabs.length > 0 && !availableTabs.some(tab => tab.value === selectedTab)) {
+      setSelectedTab(availableTabs[0].value);
+    }
+  }, [availableTabs, selectedTab]);
+
   const visibleProducts = useMemo(
-    () => products.filter(product => (product.foodCategory || 'dry_food') === selectedTab),
-    [products, selectedTab]
+    () => products.filter(product => getMarketCategoryKey(product) === activeTab),
+    [products, activeTab],
   );
   const cartCount = cart.length;
   const cartTotal = cart.reduce((sum, item) => sum + item.price, 0);
@@ -102,12 +129,12 @@ export const OrderSoweto: React.FC = () => {
         <p className="mb-1 text-xs text-gray-500">Soweto Market</p>
         <h1 className="text-xl font-bold text-gray-900 dark:text-white">{storeName}</h1>
         <div className="mt-3 flex gap-2 overflow-x-auto pb-1" role="tablist" aria-label="Market categories">
-          {tabs.map(tab => <button key={tab.value} role="tab" aria-selected={selectedTab === tab.value} onClick={() => setSelectedTab(tab.value)} className={`shrink-0 rounded-full px-4 py-2 text-sm font-semibold transition-colors ${selectedTab === tab.value ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300'}`}>{tab.label}</button>)}
+          {availableTabs.map(tab => <button key={tab.value} type="button" role="tab" aria-selected={activeTab === tab.value} onClick={() => setSelectedTab(tab.value)} className={`shrink-0 rounded-full px-5 py-2 text-sm font-semibold transition-colors ${activeTab === tab.value ? 'bg-purple-600 text-white shadow-sm' : 'bg-white text-gray-600 shadow-sm hover:bg-purple-50 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800'}`}>{tab.label}</button>)}
         </div>
       </header>
 
       <main className="flex-1 overflow-y-auto px-4 pb-24 pt-44">
-        {visibleProducts.length === 0 ? <p className="py-12 text-center text-gray-500">No {tabs.find(tab => tab.value === selectedTab)?.label.toLowerCase()} available.</p> : <div className="grid grid-cols-2 gap-4">{visibleProducts.map(product => { const count = getProductCount(product.id); return <motion.article key={product.id} whileTap={{ scale: 0.98 }} className={`overflow-hidden rounded-lg bg-white shadow-sm dark:bg-gray-900 ${count > 0 ? 'ring-2 ring-purple-400' : ''}`}><div className="relative h-32 bg-gray-200"><img src={product.imageUrl} alt={product.name} className="h-full w-full object-cover" />{count > 0 && <span className="absolute right-2 top-2 flex h-6 min-w-6 items-center justify-center rounded-full bg-purple-600 px-1.5 text-xs font-bold text-white">{count}</span>}</div><div className="p-3"><h2 className="mb-1 text-sm font-semibold text-gray-800 dark:text-gray-200">{product.name}</h2><div className="flex items-center justify-between"><span className="text-sm font-bold text-purple-600">K{product.price}{product.unit && <small className="ml-1 font-medium text-gray-500">{product.unit}</small>}</span>{count === 0 ? <button onClick={() => handleAdd(product)} className="flex h-8 w-8 items-center justify-center rounded-full bg-purple-500 text-white" aria-label={`Add ${product.name}`}><Plus size={16} /></button> : <div className="flex items-center gap-2"><button onClick={() => decrementProduct(product.id)} className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-200" aria-label={`Remove one ${product.name}`}><Minus size={16} /></button><span className="w-4 text-center text-sm font-bold">{count}</span><button onClick={() => handleAdd(product)} className="flex h-8 w-8 items-center justify-center rounded-full bg-purple-500 text-white" aria-label={`Add one ${product.name}`}><Plus size={16} /></button></div>}</div></div></motion.article>; })}</div>}
+        {visibleProducts.length === 0 ? <p className="py-12 text-center text-gray-500">No {availableTabs.find(tab => tab.value === activeTab)?.label.toLowerCase()} available.</p> : <div className="grid grid-cols-2 gap-4">{visibleProducts.map(product => { const count = getProductCount(product.id); return <motion.article key={product.id} whileTap={{ scale: 0.98 }} className={`overflow-hidden rounded-lg bg-white shadow-sm dark:bg-gray-900 ${count > 0 ? 'ring-2 ring-purple-400' : ''}`}><div className="relative h-32 bg-gray-200"><img src={product.imageUrl} alt={product.name} className="h-full w-full object-cover" />{count > 0 && <span className="absolute right-2 top-2 flex h-6 min-w-6 items-center justify-center rounded-full bg-purple-600 px-1.5 text-xs font-bold text-white">{count}</span>}</div><div className="p-3"><h2 className="mb-1 text-sm font-semibold text-gray-800 dark:text-gray-200">{product.name}</h2><div className="flex items-center justify-between"><span className="text-sm font-bold text-purple-600">K{product.price}{product.unit && <small className="ml-1 font-medium text-gray-500">{product.unit}</small>}</span>{count === 0 ? <button onClick={() => handleAdd(product)} className="flex h-8 w-8 items-center justify-center rounded-full bg-purple-500 text-white" aria-label={`Add ${product.name}`}><Plus size={16} /></button> : <div className="flex items-center gap-2"><button onClick={() => decrementProduct(product.id)} className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-200" aria-label={`Remove one ${product.name}`}><Minus size={16} /></button><span className="w-4 text-center text-sm font-bold">{count}</span><button onClick={() => handleAdd(product)} className="flex h-8 w-8 items-center justify-center rounded-full bg-purple-500 text-white" aria-label={`Add one ${product.name}`}><Plus size={16} /></button></div>}</div></div></motion.article>; })}</div>}
       </main>
 
       <footer className="fixed inset-x-0 bottom-0 z-10 border-t border-gray-100 bg-white px-4 py-3 dark:border-gray-800 dark:bg-gray-900"><button onClick={() => cartCount > 0 && navigate('/foodies-route', { replace: true })} disabled={cartCount === 0} className={`w-full rounded-lg py-3 font-semibold text-white ${cartCount > 0 ? 'bg-red-600' : 'cursor-not-allowed bg-gray-300'}`}>Complete Order ({cartCount})</button>{cartCount > 0 && <div className="mt-2 flex justify-between text-sm"><span>{cartCount} item{cartCount !== 1 ? 's' : ''} in cart</span><span className="font-bold">K{cartTotal}</span></div>}</footer>
