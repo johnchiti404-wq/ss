@@ -169,6 +169,10 @@ export function FoodDelivery() {
           lng: s.lng ?? 0,
         }));
 
+      const storeDistanceKm = deliveryCoords?.lat != null && deliveryCoords?.lng != null && storeLocation.lat != null && storeLocation.lng != null
+        ? haversineDistanceKm(deliveryCoords.lat, deliveryCoords.lng, storeLocation.lat, storeLocation.lng)
+        : null;
+
       const payload: Record<string, unknown> = {
         pickup: storeAddress || 'Store',
         destination: deliveryLocation || 'Destination',
@@ -184,7 +188,7 @@ export function FoodDelivery() {
         items: cart.map(item => ({ id: item.id, name: item.name, unit: item.unit ?? null, kg: item.kg ?? 0 })),
         storeId: routeData?.storeId || cart[0]?.storeId || '',
         storeName: routeData?.storeName || cart[0]?.storeName || '',
-        storeDistanceKm: deliveryCoords?.lat != null && deliveryCoords?.lng != null ? haversineDistanceKm(deliveryCoords.lat, deliveryCoords.lng, storeLocation.lat, storeLocation.lng) : null,
+        storeDistanceKm,
         customerLat: latitude,
         customerLng: longitude,
         storeCategory: category,
@@ -223,7 +227,7 @@ export function FoodDelivery() {
     } finally {
       setIsLoading(false);
     }
-  }, [routeData, cart, deliveryLocation, stops, serviceType, category, getKgRange]);
+  }, [routeData, cart, deliveryLocation, stops, serviceType, category, getKgRange, latitude, longitude, totalKg]);
 
   // Re-fetch on every navigation to this page so the backend is called fresh
   // each time (e.g. returning after changing the delivery address or stops).
@@ -372,6 +376,9 @@ export function FoodDelivery() {
     const destinationCoords = deliveryCoords?.lat && deliveryCoords?.lng
       ? { lat: deliveryCoords.lat, lng: deliveryCoords.lng }
       : undefined;
+    const storeDistanceKm = deliveryCoords?.lat != null && deliveryCoords?.lng != null && storeLocation.lat != null && storeLocation.lng != null
+      ? haversineDistanceKm(deliveryCoords.lat, deliveryCoords.lng, storeLocation.lat, storeLocation.lng)
+      : null;
 
 navigate('/confirm-order', {
     replace: true,
@@ -408,6 +415,13 @@ navigate('/confirm-order', {
           storeAddress: storeAddress,
           storeLocation: storeLocation,
           storeImage: routeData.storeImage || '',
+          category,
+          storeCategory: category,
+          totalKg,
+          kg: getKgRange(),
+          customerLat: latitude,
+          customerLng: longitude,
+          storeDistanceKm,
           destinationAddress: routeData.deliveryLocation || 'Destination',
           stops: stops || [],
           items: cart,

@@ -124,7 +124,9 @@ export const OrderClothes: React.FC = () => {
   const cartCount = cart.length;
   const cartTotal = cart.reduce((sum, item) => sum + item.price, 0);
 
-  const buildCartItem = (product: Product) => ({
+  const buildCartItem = (product: Product) => {
+    const explicitKg = (product as Product & { weightKg?: number }).weightKg;
+    return {
     id: `${product.id}-${Date.now()}`,
     storeId: storeId!,
     storeName: storeName,
@@ -133,11 +135,12 @@ export const OrderClothes: React.FC = () => {
     name: product.name,
     image: product.imageUrl,
     price: product.price,
-    kg: typeof (product as Product & { weightKg?: number }).weightKg === 'number' && (product as Product & { weightKg?: number }).weightKg > 0
-      ? (product as Product & { weightKg?: number }).weightKg
+    kg: typeof explicitKg === 'number' && explicitKg > 0
+      ? explicitKg
       : parseUnitToKg(product.unit, DEFAULT_ITEM_KG.clothes),
     unit: product.unit,
-  });
+    };
+  }
 
   const handleAddToCart = (product: Product) => {
     const added = addToCart(buildCartItem(product));

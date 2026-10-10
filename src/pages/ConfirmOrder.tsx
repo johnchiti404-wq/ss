@@ -286,8 +286,6 @@ export const ConfirmOrder: React.FC<ConfirmOrderProps> = ({
   dropLng: destinationCoords?.lng || null,
   customerLat: orderData.customerLat ?? null,
   customerLng: orderData.customerLng ?? null,
-  storeId: orderData.storeId || null,
-  storeDistanceKm: orderData.storeDistanceKm ?? null,
 
   // Pricing
       fee: isRide ? rideData?.estimatedPrice : (vehicle?.price || orderData.deliveryFee || 0),
@@ -300,11 +298,12 @@ export const ConfirmOrder: React.FC<ConfirmOrderProps> = ({
         : (parseInt(orderData.deliveryMode?.time) || vehicle?.eta || 20),
       
       // Store info (for store-based orders)
-        storeName: orderData.storeName || '',
-        ...(isStoreDelivery ? {
-          totalKg: orderData.totalKg || 0,
-          storeCategory: category,
-        } : {}),
+  storeName: orderData.storeName || '',
+  totalKg: typeof orderData.totalKg === 'number' ? orderData.totalKg : 0,
+  kg: orderData.kg || '',
+  storeCategory: orderData.storeCategory || category,
+  storeId: orderData.storeId || null,
+  storeDistanceKm: orderData.storeDistanceKm ?? null,
       
       // Stops - use real coordinates. For ride flows the stops are address
       // strings paired with stopCoords; for store deliveries each stop is an
