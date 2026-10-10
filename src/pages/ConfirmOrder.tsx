@@ -92,6 +92,7 @@ export const ConfirmOrder: React.FC<ConfirmOrderProps> = ({
   const isClothes = type === 'clothes';
   const isHardware = type === 'hardware';
   const isSmallShop = type === 'small_shop';
+  const isMarket = type === 'market';
   
   // isService covers special services (package, towing, truck) that don't have stores
   // MUST be checked BEFORE isRide since serviceType takes priority
@@ -226,9 +227,9 @@ export const ConfirmOrder: React.FC<ConfirmOrderProps> = ({
       workflowType = 'store_delivery'; // Hardware is store delivery
       subType = orderData.dispatchService || orderData.deliveryMode?.id || 'car';
       dispatchServiceValue = orderData.dispatchService;
-    } else if (isSmallShop) {
+    } else if (isSmallShop || isMarket) {
       svcType = 'courier';
-      category = 'small_shop';
+      category = isMarket ? 'market' : 'small_shop';
       workflowType = 'store_delivery';
       subType = orderData.dispatchService || orderData.deliveryMode?.id || 'motorbike';
       dispatchServiceValue = orderData.dispatchService;
@@ -295,8 +296,12 @@ export const ConfirmOrder: React.FC<ConfirmOrderProps> = ({
         : (parseInt(orderData.deliveryMode?.time) || vehicle?.eta || 20),
       
       // Store info (for store-based orders)
-      storeId: orderData.storeId || '',
-      storeName: orderData.storeName || '',
+        storeId: orderData.storeId || '',
+        storeName: orderData.storeName || '',
+        ...(isStoreDelivery ? {
+          totalKg: orderData.totalKg || 0,
+          storeCategory: category,
+        } : {}),
       
       // Stops - use real coordinates. For ride flows the stops are address
       // strings paired with stopCoords; for store deliveries each stop is an
@@ -324,6 +329,8 @@ export const ConfirmOrder: React.FC<ConfirmOrderProps> = ({
         image: item.image || '',
         storeName: orderData.storeName || '',
         storeId: orderData.storeId || '',
+        unit: item.unit ?? null,
+        kg: item.kg ?? 0,
       }));
       orderInput.items = cleanItems;
       orderInput.kg = orderData.kg || '';

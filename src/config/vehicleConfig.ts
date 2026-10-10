@@ -24,6 +24,8 @@ export interface BackendRideOption {
   cargoType?: string;          // e.g., "open", "closed", "refrigerated"
   refrigerationType?: string;  // e.g., "standard", "deep_freeze"
   recommended?: boolean;       // Whether this is the recommended option
+  tooHeavy?: boolean;
+  capacityKg?: number;
   encodedPolyline?: string | null; // Encoded route polyline for the trip
 }
 
@@ -259,6 +261,8 @@ export const SERVICE_VEHICLE_MAP: Record<string, string[]> = {
     'bicycle',
     'motorbike',
     'car',
+    'open_truck',
+    'closed_truck',
     'bakkie',
     'van',
     'truck',

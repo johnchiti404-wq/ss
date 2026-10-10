@@ -53,7 +53,7 @@ const DeliverySkeletonCard: React.FC<{ index: number }> = ({ index }) => (
 export function FoodDelivery() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { cart, getKgRange } = useGlobalCart();
+  const { cart, getKgRange, getTotalKgExact } = useGlobalCart();
   const { latitude, longitude } = useGeolocation();
 
   // Load data from localStorage (from FoodiesRoute)
@@ -121,7 +121,8 @@ export function FoodDelivery() {
 
   // Determine service type based on category
   // food, clothes, market, and small shops use 'courier'; hardware uses 'delivery'
-  const serviceType = category === 'hardware' ? 'delivery' : 'courier';
+  const totalKg = getTotalKgExact();
+  const serviceType = category === 'hardware' || totalKg > 200 ? 'delivery' : 'courier';
 
   // CART IS THE SINGLE SOURCE OF TRUTH
   const totalItemCount = useMemo(() => cart.length, [cart.length]);
@@ -176,8 +177,12 @@ export function FoodDelivery() {
         dropLat: deliveryCoords.lat,
         dropLng: deliveryCoords.lng,
         serviceType: serviceType,
-        category: category,
-        kg: kgRange
+        category,
+        kg: kgRange,
+        totalKg,
+        items: cart.map(item => ({ id: item.id, name: item.name, unit: item.unit ?? null, kg: item.kg ?? 0 })),
+        storeId: routeData?.storeId || cart[0]?.storeId || '',
+        storeCategory: category,
       };
 
       console.log('[v0] Sending delivery payload:', payload);
@@ -190,12 +195,16 @@ export function FoodDelivery() {
       const optionsArray = Array.isArray(options) ? options : [];
       
       // Filter options by service type before setting state
-      const filteredOptions = filterOptionsByService(optionsArray, serviceType);
+      const filteredOptions = filterOptionsByService(optionsArray, serviceType)
+        .filter(option => option.tooHeavy !== true);
 
       // Enrich each option with dispatchService and vehicleCategory
       const enrichedOptions = filteredOptions.map(opt => enrichRideOption(opt, serviceType));
 
       setDeliveryOptions(enrichedOptions);
+      if (!enrichedOptions.some(option => option.enabled)) {
+        console.warn('[delivery] no enabled vehicle', { pickupLat: storeLocation.lat, pickupLng: storeLocation.lng, totalKg, serviceType });
+      }
 
       // Auto-select first enabled vehicle
       const firstEnabled = enrichedOptions.find((x: BackendRideOption) => x.enabled);
@@ -238,8 +247,10 @@ export function FoodDelivery() {
 
   // Get sorted delivery options - recommended first, then by filter criteria
   const getSortedOptions = (): BackendRideOption[] => {
-    // Start with recommended sorting
-    let sorted = sortOptionsWithRecommendedFirst(deliveryOptions);
+    // Standard preserves the backend's order; alternate tabs sort with recommended first.
+    let sorted = selectedFilter === 'standard'
+      ? [...deliveryOptions]
+      : sortOptionsWithRecommendedFirst(deliveryOptions);
 
     if (selectedFilter === 'faster') {
       sorted.sort((a, b) => {
@@ -686,11 +697,9 @@ navigate('/confirm-order', {
                 Retry
               </motion.button>
             </div>
-          ) : !hasOptions ? (
-            /* EMPTY STATE */
+          ) : !deliveryOptions.some(option => option.enabled) ? (
             <div className="flex flex-col items-center justify-center py-8">
-              <p className="text-gray-600 text-center mb-2">No delivery vehicles available</p>
-              <p className="text-gray-400 text-sm text-center mb-4">Try again in a moment</p>
+              <p className="text-gray-600 text-center mb-2">No drivers near {routeData?.storeName || cart[0]?.storeName || 'the store'} right now. Try again in a few minutes.</p>
               <motion.button
                 onClick={handleRetry}
                 className="flex items-center gap-2 px-4 py-2 bg-[#5B2EFF] text-white rounded-full font-medium"
@@ -738,7 +747,7 @@ navigate('/confirm-order', {
                           <div className="flex items-center gap-2">
                             <h3 className="font-bold text-gray-900 dark:text-white">{option.title}</h3>
                             {option.recommended && (
-                              <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-purple-100 text-purple-700">
+                              <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-green-100 text-green-700">
                                 Recommended
                               </span>
                             )}
@@ -764,6 +773,7 @@ navigate('/confirm-order', {
                   </motion.button>
                 );
               })}
+              <p className="text-xs text-gray-500">Total weight about {totalKg} kg</p>
             </div>
           )}
 

@@ -24,7 +24,7 @@ export function FoodiesRoute() {
   const navigate = useNavigate();
   const location = useLocation();
   const { address: currentLocation, latitude: geoLat, longitude: geoLng, loading: locationLoading } = useGeolocation();
-  const { cart, removeFromCart } = useGlobalCart();
+  const { cart, removeFromCart, getTotalKgExact } = useGlobalCart();
 
   const currentLocationInputRef = useRef<HTMLInputElement>(null);
   const stopInputRefs = useRef<{ [key: string]: HTMLInputElement }>({});
@@ -374,8 +374,11 @@ export function FoodiesRoute() {
         category: item.category,
         name: item.name,
         image: item.image,
-        price: item.price
+        price: item.price,
+        unit: item.unit ?? null,
+        kg: item.kg ?? 0
       })),
+      totalKg: getTotalKgExact(),
       timestamp: Date.now()
     };
 

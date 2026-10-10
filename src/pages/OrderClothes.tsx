@@ -7,6 +7,7 @@ import { CrossStoreModal } from '../components/CrossStoreModal';
 import { fetchStoreById, fetchProductsByStore } from '../services/storeService';
 import { buildAvailableTabs, getProductCategoryKey, getProductImages, Product } from '../data/storesData';
 import { ImageLightbox } from '../components/ImageLightbox';
+import { DEFAULT_ITEM_KG, parseUnitToKg } from '../utils/weightUtils';
 
 type CategoryTab = { label: string; value: string };
 
@@ -132,6 +133,10 @@ export const OrderClothes: React.FC = () => {
     name: product.name,
     image: product.imageUrl,
     price: product.price,
+    kg: typeof (product as Product & { weightKg?: number }).weightKg === 'number' && (product as Product & { weightKg?: number }).weightKg > 0
+      ? (product as Product & { weightKg?: number }).weightKg
+      : parseUnitToKg(product.unit, DEFAULT_ITEM_KG.clothes),
+    unit: product.unit,
   });
 
   const handleAddToCart = (product: Product) => {

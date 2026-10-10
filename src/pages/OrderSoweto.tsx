@@ -5,7 +5,8 @@ import { ArrowLeft, Minus, Plus, ShoppingCart } from 'lucide-react';
 import { useGlobalCart } from '../contexts/GlobalCartContext';
 import { CrossStoreModal } from '../components/CrossStoreModal';
 import { fetchProductsByStore, fetchStoreById } from '../services/storeService';
-import { buildAvailableTabs, DEFAULT_ITEM_KG, parseUnitToKg, Product } from '../data/storesData';
+import { buildAvailableTabs, Product } from '../data/storesData';
+import { DEFAULT_ITEM_KG, parseUnitToKg } from '../utils/weightUtils';
 
 type MarketTab = { label: string; value: string };
 
@@ -92,7 +93,10 @@ export const OrderSoweto: React.FC = () => {
     storeName,
     storeAddress,
     category: 'market' as const,
-    kg: parseUnitToKg(product.unit, DEFAULT_ITEM_KG.market),
+    kg: typeof (product as Product & { weightKg?: number }).weightKg === 'number' && (product as Product & { weightKg?: number }).weightKg > 0
+      ? (product as Product & { weightKg?: number }).weightKg
+      : parseUnitToKg(product.unit, DEFAULT_ITEM_KG.market),
+    unit: product.unit,
     name: product.name,
     image: product.imageUrl,
     price: product.price,
