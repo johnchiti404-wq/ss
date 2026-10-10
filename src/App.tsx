@@ -47,6 +47,7 @@ import { firebaseService } from './services/firebaseService';
 import { getETA } from './utils/etaCalculation';
 import { useNotificationPermission } from './hooks/useNotificationPermission';
 import { CallProvider } from './contexts/CallContext';
+import { CallOverlay } from './components/CallOverlay';
 
 interface AppState {
   selectedDestination: string;
@@ -540,7 +541,10 @@ function App() {
           style={{ minHeight: '100vh' }}
         >
           <Router>
-            <CallProvider><AppContent userId={authUser!.uid} /></CallProvider>
+            <CallProvider>
+              <AppContent userId={authUser!.uid} />
+              <CallOverlay />
+            </CallProvider>
           </Router>
         </motion.div>
       ) : (

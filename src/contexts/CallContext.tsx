@@ -3,7 +3,6 @@ import { onAuthStateChanged } from 'firebase/auth';
 import { onValue, ref } from 'firebase/database';
 import { auth, database } from '../config/firebase';
 import { acceptCall, declineCall, endCall as apiEndCall, joinChannel, startCall as apiStartCall, type ActiveCall, type CallCredentials } from '../services/callService';
-import { CallOverlay } from '../components/CallOverlay';
 
 type CallState = 'idle' | 'calling' | 'ringing' | 'in-call' | 'ended';
 type CallSnapshot = { callId: string; orderId: string; channel: string; direction: 'incoming' | 'outgoing'; peerName?: string; status: 'ringing' | 'active' | 'ended' | 'declined' | 'missed' | 'cancelled' | 'trip_ended'; expiresAt?: number; startedAt?: number; durationSeconds?: number; };
@@ -121,6 +120,6 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
   const end = useCallback(async () => { if (endingRef.current || !snapshotRef.current?.callId) return; endingRef.current = true; const current = snapshotRef.current; const message = current.startedAt || callStateRef.current === 'in-call' ? `Call ended · ${formatTime(elapsedSeconds)}` : 'Call cancelled'; await apiEndCall(current.callId).catch(() => undefined); await finishCall(message); }, [elapsedSeconds, finishCall]);
   const mute = useCallback(async () => { const next = !isMuted; await activeRef.current?.setMuted(next); setIsMuted(next); }, [isMuted]);
   const value = useMemo(() => ({ callState, peerName, elapsedSeconds, formattedTime: formatTime(elapsedSeconds), isMuted, endedMessage, startCall: start, answerCall: answer, declineCall: decline, endCall: end, toggleMute: mute }), [answer, callState, decline, elapsedSeconds, end, endedMessage, isMuted, mute, peerName, start]);
-  return <CallContext.Provider value={value}><>{children}<CallOverlay /></></CallContext.Provider>;
+  return <CallContext.Provider value={value}>{children}</CallContext.Provider>;
 }
 export function useCall() { const value = useContext(CallContext); if (!value) throw new Error('useCall must be used inside CallProvider'); return value; }
