@@ -1,5 +1,12 @@
 export type StoreCategory = 'food' | 'clothes' | 'hardware' | 'market' | 'small_shop';
 
+export const brandKeyOf = (name: string): string => name
+  .toLowerCase()
+  .trim()
+  .split(' - ')[0]
+  .split(' (')[0]
+  .replace(/\s+/g, ' ');
+
 export const DEFAULT_ITEM_KG: Record<StoreCategory, number> = {
   food: 1,
   clothes: 1,

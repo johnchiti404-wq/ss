@@ -260,7 +260,7 @@ export const ConfirmOrder: React.FC<ConfirmOrderProps> = ({
       || '';
 
     // Build order input with EXACT document structure
-    const orderInput: CreateOrderInput = {
+    const orderInput: CreateOrderInput & Record<string, unknown> = {
       // User info
       userId,
       userName,
@@ -283,9 +283,13 @@ export const ConfirmOrder: React.FC<ConfirmOrderProps> = ({
       pickupLat: pickupCoords?.lat || latitude || null,
       pickupLng: pickupCoords?.lng || longitude || null,
       dropLat: destinationCoords?.lat || null,
-      dropLng: destinationCoords?.lng || null,
-      
-      // Pricing
+  dropLng: destinationCoords?.lng || null,
+  customerLat: orderData.customerLat ?? null,
+  customerLng: orderData.customerLng ?? null,
+  storeId: orderData.storeId || null,
+  storeDistanceKm: orderData.storeDistanceKm ?? null,
+
+  // Pricing
       fee: isRide ? rideData?.estimatedPrice : (vehicle?.price || orderData.deliveryFee || 0),
       subtotal: orderData.subtotal || orderData.foodSubtotal || 0,
       total: isRide ? rideData?.estimatedPrice : (orderData.totalPrice || vehicle?.price || 0),
@@ -296,7 +300,6 @@ export const ConfirmOrder: React.FC<ConfirmOrderProps> = ({
         : (parseInt(orderData.deliveryMode?.time) || vehicle?.eta || 20),
       
       // Store info (for store-based orders)
-        storeId: orderData.storeId || '',
         storeName: orderData.storeName || '',
         ...(isStoreDelivery ? {
           totalKg: orderData.totalKg || 0,

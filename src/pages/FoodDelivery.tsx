@@ -8,6 +8,7 @@ import { apiPost } from '../config/api';
 import { MapLibreMap, MapMarker } from '../components/MapLibreMap';
 import { LocationPickerOverlay, LocationEditMode, LocationCoordinate } from '../components/LocationPickerOverlay';
 import { useNearbyDrivers, LUSAKA_DEFAULT } from '../hooks/useNearbyDrivers';
+import { haversineDistanceKm } from '../utils/geoUtils';
 import {
   BackendRideOption,
   getVehicleConfig,
@@ -182,6 +183,10 @@ export function FoodDelivery() {
         totalKg,
         items: cart.map(item => ({ id: item.id, name: item.name, unit: item.unit ?? null, kg: item.kg ?? 0 })),
         storeId: routeData?.storeId || cart[0]?.storeId || '',
+        storeName: routeData?.storeName || cart[0]?.storeName || '',
+        storeDistanceKm: deliveryCoords?.lat != null && deliveryCoords?.lng != null ? haversineDistanceKm(deliveryCoords.lat, deliveryCoords.lng, storeLocation.lat, storeLocation.lng) : null,
+        customerLat: latitude,
+        customerLng: longitude,
         storeCategory: category,
       };
 

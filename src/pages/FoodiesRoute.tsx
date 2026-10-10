@@ -4,7 +4,9 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, X, Clock, ChevronRight, Loader2, Navigation } from 'lucide-react';
 import { useGlobalCart } from '../contexts/GlobalCartContext';
 import { useGeolocation } from '../hooks/useGeolocation';
-import { fetchStoreById } from '../services/storeService';
+import { fetchStoreById, fetchStoresByCategory, fetchProductsByStore, isStoreOpen } from '../services/storeService';
+import { brandKeyOf, DEFAULT_ITEM_KG, parseUnitToKg, Product } from '../data/storesData';
+import { haversineDistanceKm } from '../utils/geoUtils';
 import { 
   searchAddresses, 
   getRecentAddresses, 
@@ -76,6 +78,7 @@ export function FoodiesRoute() {
   const [hasAutoFilled, setHasAutoFilled] = useState(!!initialData.deliveryLocation);
   const [showCurrentLocationModal, setShowCurrentLocationModal] = useState(false);
   const [showStopModal, setShowStopModal] = useState<string | null>(null);
+  const [nearerBranch, setNearerBranch] = useState<{ store: any; currentKm: number; nearerKm: number } | null>(null);
 
   const assignedToStopsIds = useMemo(() => {
     const ids: string[] = [];
@@ -327,6 +330,40 @@ export function FoodiesRoute() {
     );
   };
 
+  useEffect(() => {
+    if (!deliveryCoords || !cart[0]?.storeId || !cart[0]?.storeName || localStorage.getItem(`BRANCH_CHOICE_${cart[0].storeId}`)) return;
+    let cancelled = false;
+    void (async () => {
+      const current = await fetchStoreById(cart[0].storeId);
+      const branches = await fetchStoresByCategory(cart[0].category);
+      if (cancelled || !current?.location) return;
+      const currentKm = haversineDistanceKm(deliveryCoords.lat, deliveryCoords.lng, current.location.lat, current.location.lng);
+      const nearer = branches.filter(branch => brandKeyOf(branch.storeName) === brandKeyOf(cart[0].storeName) && branch.id !== current.id && isStoreOpen(branch.openingHours).isOpen && branch.location)
+        .map(branch => ({ store: branch, km: haversineDistanceKm(deliveryCoords.lat, deliveryCoords.lng, branch.location!.lat, branch.location!.lng) }))
+        .sort((a, b) => a.km - b.km)[0];
+      if (nearer && currentKm - nearer.km >= 1) setNearerBranch({ store: nearer.store, currentKm, nearerKm: nearer.km });
+    })().catch(error => console.error('Branch comparison failed:', error));
+    return () => { cancelled = true; };
+  }, [deliveryCoords, cart]);
+
+  const switchToNearerBranch = async () => {
+    if (!nearerBranch) return;
+    const products = await fetchProductsByStore(nearerBranch.store.id);
+    const missing: string[] = [];
+    const replacementCart = cart.flatMap(item => {
+      const product = products.find(candidate => candidate.name.trim().toLowerCase() === item.name.trim().toLowerCase());
+      if (!product) { missing.push(item.name); return []; }
+      return [{ ...item, id: `${product.id}-${Date.now()}-${Math.random()}`, storeId: nearerBranch.store.id, storeName: nearerBranch.store.storeName, storeAddress: nearerBranch.store.address, image: product.imageUrl, price: product.price, unit: product.unit, kg: parseUnitToKg(product.unit, DEFAULT_ITEM_KG[item.category]) }];
+    });
+    if (missing.length && !window.confirm(`These items are not at the nearer branch: ${missing.join(', ')}. They will be removed.`)) return;
+    localStorage.setItem('GLOBAL_CART', JSON.stringify(replacementCart));
+    localStorage.setItem('FOODIES_ROUTE_DATA', JSON.stringify({ ...JSON.parse(localStorage.getItem('FOODIES_ROUTE_DATA') || '{}'), storeId: nearerBranch.store.id, storeName: nearerBranch.store.storeName, storeAddress: nearerBranch.store.address, storeLocation: nearerBranch.store.location, storeImage: nearerBranch.store.logo, cart: replacementCart, timestamp: Date.now() }));
+    localStorage.setItem(`BRANCH_CHOICE_${nearerBranch.store.id}`, 'switched');
+    window.location.reload();
+  };
+
+  const handleKeepBranch = () => { if (cart[0]?.storeId) localStorage.setItem(`BRANCH_CHOICE_${cart[0].storeId}`, 'kept'); setNearerBranch(null); };
+
   const handleGoToDelivery = async () => {
     // Save route data to localStorage before navigation
     // Get store info from first cart item
@@ -436,6 +473,7 @@ export function FoodiesRoute() {
       className="flex flex-col h-screen bg-gray-50 dark:bg-gray-950"
     >
       <div className="fixed top-0 left-0 right-0 z-30 bg-white dark:bg-gray-900 border-b border-gray-100 dark:border-gray-800 flex-shrink-0">
+        {nearerBranch && <div className="bg-purple-50 px-4 py-3 text-xs text-purple-900"><p><strong>{nearerBranch.store.storeName}</strong> is {nearerBranch.nearerKm.toFixed(1)} km from your address and {cart[0]?.storeName} is {nearerBranch.currentKm.toFixed(1)} km. Switch to the nearer branch?</p><div className="mt-2 flex gap-2"><button type="button" onClick={() => void switchToNearerBranch()} className="rounded-full bg-[#5B2EFF] px-3 py-1.5 font-semibold text-white">Switch</button><button type="button" onClick={handleKeepBranch} className="rounded-full border border-purple-300 px-3 py-1.5 font-semibold">Keep</button></div></div>}
         <div className="p-3">
           <div className="flex items-center gap-2 mb-3">
             <motion.button

@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ArrowLeft, Search, Star, ChevronRight } from 'lucide-react';
-import { Store, StoreCategory } from '../data/storesData';
+import { Store, StoreCategory, brandKeyOf } from '../data/storesData';
 import { fetchStoresByCategory, isStoreOpen } from '../services/storeService';
 import { haversineDistanceKm, estimateTravelTimeMinutes } from '../utils/geoUtils';
 import { useGeolocation } from '../hooks/useGeolocation';
@@ -11,6 +11,8 @@ import { useGeolocation } from '../hooks/useGeolocation';
 interface StoreWithDistance extends Store {
   computedDistanceKm: number | null;
   computedTravelMinutes: number | null;
+  branchCount?: number;
+  branches?: StoreWithDistance[];
 }
 
 // Skeleton Card Component - Uber/Bolt style animated placeholder
@@ -51,6 +53,7 @@ export const Shop: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [stores, setStores] = useState<Store[]>([]);
   const [loading, setLoading] = useState(true);
+  const [branchSheet, setBranchSheet] = useState<{ brand: string; branches: StoreWithDistance[] } | null>(null);
   const { latitude, longitude } = useGeolocation();
   const userLocation = latitude != null && longitude != null
     ? { lat: latitude, lng: longitude }
@@ -142,11 +145,20 @@ export const Shop: React.FC = () => {
       return { ...store, computedDistanceKm: null, computedTravelMinutes: null };
     });
 
-    // Sort by nearest distance first (stores without a distance go last)
-    return enriched.sort((a, b) => {
+    const sorted = enriched.sort((a, b) => {
       if (a.computedDistanceKm === null) return 1;
       if (b.computedDistanceKm === null) return -1;
       return a.computedDistanceKm - b.computedDistanceKm;
+    });
+    if (!userLocation) return sorted;
+    const grouped = new Map<string, StoreWithDistance[]>();
+    sorted.forEach(store => {
+      const key = brandKeyOf(store.storeName);
+      grouped.set(key, [...(grouped.get(key) || []), store]);
+    });
+    return Array.from(grouped.values()).map(branches => {
+      const open = branches.find(branch => isStoreOpen(branch.openingHours).isOpen);
+      return { ...(open || branches[0]), branchCount: branches.length, branches } as StoreWithDistance & { branchCount: number; branches: StoreWithDistance[] };
     });
   }, [searchQuery, stores, userLocation]);
 
@@ -280,8 +292,10 @@ export const Shop: React.FC = () => {
           >
             {filteredStores.map((store) => {
               const { isOpen, nextOpenTime } = isStoreOpen(store.openingHours);
+              const branches = store.branches || [store];
               
               return (
+                <div key={store.id}>
                 <motion.button
                   key={store.id}
                   onClick={() => handleStoreClick(store)}
@@ -321,7 +335,8 @@ export const Shop: React.FC = () => {
 
                     {/* Store Info */}
                     <div className="flex-1 text-left">
-                      <h3 className="font-bold text-lg text-gray-900 dark:text-white mb-1">{store.storeName}</h3>
+                      <h3 className="font-bold text-lg text-gray-900 dark:text-white mb-1">{brandKeyOf(store.storeName).replace(/\b\w/g, letter => letter.toUpperCase())}</h3>
+                      {store.branchCount && store.branchCount > 1 && <p className="text-xs text-gray-500 mb-1">{store.branchCount} branches · nearest {store.computedDistanceKm?.toFixed(1) ?? '--'} km</p>}
 
                       {/* Distance and Rating */}
                       <div className="flex items-center space-x-4 text-sm text-gray-600 dark:text-gray-400 mb-2">
@@ -361,6 +376,10 @@ export const Shop: React.FC = () => {
                     </div>
                   </div>
                 </motion.button>
+                {branches.length > 1 && userLocation && (
+                  <button type="button" onClick={() => setBranchSheet({ brand: brandKeyOf(store.storeName), branches })} className="mt-1 w-full text-left px-4 text-xs font-semibold text-[#5B2EFF]">Choose another branch</button>
+                )}
+                </div>
               );
             })}
           </motion.div>
@@ -377,6 +396,14 @@ export const Shop: React.FC = () => {
           </motion.div>
         )}
       </div>
+      {branchSheet && (
+        <div className="fixed inset-0 z-50 flex items-end bg-black/40" onClick={() => setBranchSheet(null)}>
+          <div className="w-full rounded-t-3xl bg-white p-5 shadow-2xl" onClick={event => event.stopPropagation()}>
+            <div className="mb-4 flex items-center justify-between"><h2 className="text-lg font-bold">{branchSheet.brand}</h2><button type="button" onClick={() => setBranchSheet(null)} aria-label="Close">×</button></div>
+            <div className="space-y-2">{branchSheet.branches.map(branch => { const status = isStoreOpen(branch.openingHours); return <button type="button" key={branch.id} disabled={!status.isOpen} onClick={() => handleStoreClick(branch)} className="w-full rounded-xl border p-3 text-left disabled:opacity-50"><div className="flex justify-between gap-3"><span className="font-semibold">{branch.storeName}</span><span className={status.isOpen ? 'text-green-600' : 'text-red-500'}>{status.isOpen ? 'OPEN' : 'CLOSED'}</span></div><p className="text-xs text-gray-500">{branch.address} · {branch.computedDistanceKm?.toFixed(1) ?? '--'} km</p></button>; })}</div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
