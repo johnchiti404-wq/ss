@@ -5,7 +5,7 @@ import { ArrowLeft, Minus, Plus, ShoppingCart } from 'lucide-react';
 import { useGlobalCart } from '../contexts/GlobalCartContext';
 import { CrossStoreModal } from '../components/CrossStoreModal';
 import { fetchProductsByStore, fetchStoreById } from '../services/storeService';
-import { buildAvailableTabs, Product } from '../data/storesData';
+import { buildAvailableTabs, DEFAULT_ITEM_KG, parseUnitToKg, Product } from '../data/storesData';
 
 type MarketTab = { label: string; value: string };
 
@@ -43,13 +43,13 @@ export const OrderSoweto: React.FC = () => {
   useEffect(() => {
     const loadStore = async () => {
       if (!storeId) {
-        navigate('/shop', { replace: true });
+        navigate('/shop', { state: { category: 'market' }, replace: true });
         return;
       }
       try {
         const store = await fetchStoreById(storeId);
         if (!store) {
-          navigate('/shop', { replace: true });
+          navigate('/shop', { state: { category: 'market' }, replace: true });
           return;
         }
         setStoreName(store.storeName);
@@ -57,7 +57,7 @@ export const OrderSoweto: React.FC = () => {
         setProducts(await fetchProductsByStore(storeId));
       } catch (error) {
         console.error('Error loading Soweto Market products:', error);
-        navigate('/shop', { replace: true });
+        navigate('/shop', { state: { category: 'market' }, replace: true });
       } finally {
         setLoading(false);
       }
@@ -91,7 +91,8 @@ export const OrderSoweto: React.FC = () => {
     storeId: storeId!,
     storeName,
     storeAddress,
-    category: 'food' as const,
+    category: 'market' as const,
+    kg: parseUnitToKg(product.unit, DEFAULT_ITEM_KG.market),
     name: product.name,
     image: product.imageUrl,
     price: product.price,

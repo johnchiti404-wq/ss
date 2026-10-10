@@ -91,6 +91,7 @@ export const ConfirmOrder: React.FC<ConfirmOrderProps> = ({
   const isFood = orderType === 'food' || type === 'food';
   const isClothes = type === 'clothes';
   const isHardware = type === 'hardware';
+  const isSmallShop = type === 'small_shop';
   
   // isService covers special services (package, towing, truck) that don't have stores
   // MUST be checked BEFORE isRide since serviceType takes priority
@@ -101,7 +102,7 @@ export const ConfirmOrder: React.FC<ConfirmOrderProps> = ({
   const isRide = orderType === 'ride' && rideData && !isService;
   
   // isStoreDelivery covers all store-based delivery flows (food, clothes, hardware)
-  const isStoreDelivery = isDelivery || isFood || isClothes || isHardware;
+  const isStoreDelivery = isDelivery || isFood || isClothes || isHardware || isSmallShop;
 
   // Get final addresses based on flow type
   const finalDestination = isRide 
@@ -153,6 +154,7 @@ export const ConfirmOrder: React.FC<ConfirmOrderProps> = ({
    * - Clothes: serviceType = "courier", category = "clothes"
    * - Package: serviceType = "courier", category = "package"
    * - Hardware: serviceType = "delivery", category = "hardware"
+   * - Small Shops: serviceType = "courier", category = "small_shop"
    * - Truck: serviceType = "delivery_truck"
    * - Towing: serviceType = "towing"
    * 
@@ -173,7 +175,7 @@ export const ConfirmOrder: React.FC<ConfirmOrderProps> = ({
     let dispatchServiceValue: string | undefined = undefined;
     
     // REQUIRED: Determine workflowType for backend dispatch logic
-    // "store_delivery" = food, clothes, hardware (wait for store ready_for_pickup)
+    // "store_delivery" = food, clothes, hardware, small_shop (wait for store ready_for_pickup)
     // "direct_trip" = ride, package, delivery_truck, towing (dispatch immediately)
     let workflowType: WorkflowType = 'direct_trip'; // Default to direct_trip
 
@@ -223,6 +225,12 @@ export const ConfirmOrder: React.FC<ConfirmOrderProps> = ({
       category = 'hardware';
       workflowType = 'store_delivery'; // Hardware is store delivery
       subType = orderData.dispatchService || orderData.deliveryMode?.id || 'car';
+      dispatchServiceValue = orderData.dispatchService;
+    } else if (isSmallShop) {
+      svcType = 'courier';
+      category = 'small_shop';
+      workflowType = 'store_delivery';
+      subType = orderData.dispatchService || orderData.deliveryMode?.id || 'motorbike';
       dispatchServiceValue = orderData.dispatchService;
     } else if (isRide) {
       // Ride flow -> serviceType: "ride"
@@ -307,7 +315,7 @@ export const ConfirmOrder: React.FC<ConfirmOrderProps> = ({
     };
 
     // Add items for store-based orders (food, clothes, hardware)
-    if (isStoreDelivery || category === 'food' || category === 'clothes' || category === 'hardware') {
+    if (isStoreDelivery || category === 'food' || category === 'clothes' || category === 'hardware' || category === 'small_shop') {
       const cleanItems = (orderData.items || []).map((item: any) => ({
         id: item.id || '',
         name: item.name || '',

@@ -1,4 +1,25 @@
-export type StoreCategory = 'food' | 'clothes' | 'hardware' | 'market';
+export type StoreCategory = 'food' | 'clothes' | 'hardware' | 'market' | 'small_shop';
+
+export const DEFAULT_ITEM_KG: Record<StoreCategory, number> = {
+  food: 1,
+  clothes: 1,
+  hardware: 5,
+  market: 1,
+  small_shop: 1,
+};
+
+export const parseUnitToKg = (unit?: string, fallback = 1): number => {
+  if (!unit) return fallback;
+  const match = unit.trim().toLowerCase().match(/([\d.]+)\s*(kg|g|l|ml)?/);
+  if (!match) return fallback;
+  const amount = Number(match[1]);
+  if (!Number.isFinite(amount)) return fallback;
+  switch (match[2]) {
+    case 'g': return amount / 1000;
+    case 'ml': return amount / 1000;
+    default: return amount;
+  }
+};
 
 export interface OpeningHours {
   [day: string]: {

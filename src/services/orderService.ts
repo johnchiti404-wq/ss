@@ -29,7 +29,7 @@ export type ServiceType =
   | 'towing';        // Towing path
 
 // Category types for courier and delivery
-export type CategoryType = 'food' | 'clothes' | 'package' | 'hardware';
+export type CategoryType = 'food' | 'clothes' | 'package' | 'hardware' | 'market' | 'small_shop';
 
 // Workflow type - determines backend dispatch behavior
 export type WorkflowType = 'store_delivery' | 'direct_trip';
@@ -466,7 +466,7 @@ export async function updateDriverLocation(
  * Helper to get display text for status
  */
 export function getStatusDisplayText(status: OrderStatus, serviceType: ServiceType): string {
-  const isDelivery = ['food', 'clothes', 'hardware', 'package'].includes(serviceType);
+  const isDelivery = ['food', 'clothes', 'hardware', 'market', 'small_shop', 'package'].includes(serviceType);
   const isTowing = serviceType === 'towing';
   const isTruck = serviceType === 'truck';
   

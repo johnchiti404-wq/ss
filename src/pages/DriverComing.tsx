@@ -111,7 +111,7 @@ export const DriverComing: React.FC<DriverComingProps> = ({
     orderData = {}
   } = location.state || {};
   
-  const isFood = orderType === 'food';
+  const isFood = orderType === 'food' || orderType === 'small_shop' || orderType === 'market';
   const isService = orderType === 'service' || ['package', 'towing', 'truck'].includes(orderType);
   const isRide = orderType === 'ride';
   const orderId = stateOrderId || requestId || currentRideId;

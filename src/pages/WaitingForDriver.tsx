@@ -48,7 +48,7 @@ export const WaitingForDriver: React.FC<WaitingForDriverProps> = ({
     useFirestore = false // Flag to determine which DB to use
   } = location.state || {};
   
-  const isFood = orderType === 'food';
+  const isFood = orderType === 'food' || orderType === 'small_shop' || orderType === 'market';
   // Services that use the ride-like flow (no store)
   const isRideLikeService = orderType === 'package' || orderType === 'towing' || orderType === 'truck';
   const isService = orderType === 'service' || isRideLikeService;

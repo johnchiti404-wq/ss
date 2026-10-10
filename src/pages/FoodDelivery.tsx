@@ -120,7 +120,7 @@ export function FoodDelivery() {
   const category = routeData?.category || cart[0]?.category || 'food';
 
   // Determine service type based on category
-  // food/clothes use 'courier', hardware uses 'delivery'
+  // food, clothes, market, and small shops use 'courier'; hardware uses 'delivery'
   const serviceType = category === 'hardware' ? 'delivery' : 'courier';
 
   // CART IS THE SINGLE SOURCE OF TRUTH

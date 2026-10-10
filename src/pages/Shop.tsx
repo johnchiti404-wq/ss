@@ -87,6 +87,8 @@ export const Shop: React.FC = () => {
         return 'Hardware';
       case 'market':
         return 'Soweto Market';
+      case 'small_shop':
+        return 'Small Shops';
       default:
         return 'Aletwende Send';
     }
@@ -103,6 +105,8 @@ export const Shop: React.FC = () => {
         return 'Hardware Stores';
       case 'market':
         return 'Fresh Market Goods';
+      case 'small_shop':
+        return 'Everyday Essentials';
       default:
         return 'Shops';
     }
@@ -181,6 +185,8 @@ export const Shop: React.FC = () => {
       orderPath = '/order-hardware';
     } else if (category === 'market') {
       orderPath = '/order-soweto';
+    } else if (category === 'small_shop') {
+      orderPath = '/order-small-shops';
     }
     
     navigate(`${orderPath}/${store.id}`, { replace: true });

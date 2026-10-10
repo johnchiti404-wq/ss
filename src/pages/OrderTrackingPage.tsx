@@ -381,7 +381,7 @@ export const OrderTrackingPage: React.FC = () => {
   const canCancelOrder = !orderData.driverId && !['assigned', 'at_store', 'picked_up'].includes(orderData.driverStatus || '') && ['pending', 'accepted', 'preparing', 'ready_for_pickup'].includes(orderData.status || '');
   const cancellationFeeApplies = ['accepted', 'preparing', 'ready_for_pickup'].includes(orderData.status || '');
   const category = String(orderData.category || orderData.type || 'food').toLowerCase();
-  const normalizedCategory = category === 'clothes' || category === 'hardware' ? category : 'food';
+  const normalizedCategory = category === 'clothes' || category === 'hardware' || category === 'small_shop' || category === 'market' ? category : 'food';
 
   const handleCancelRequest = () => {
     if (!canCancelOrder || isCancelling) return;
