@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Check, MapPin, Store, Package, Truck, User } from 'lucide-react';
+import { Check, MapPin, Store, Package, Truck, User, Phone } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { db } from '../config/firebase';
-import { doc, onSnapshot, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, onSnapshot, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { soundManager } from '../utils/notificationSound';
 import { useGlobalCart } from '../contexts/GlobalCartContext';
 import { usePreventBack } from '../hooks/usePreventBack';
+import { useCall } from '../contexts/CallContext';
 
 interface OrderItem {
   name: string;
@@ -176,7 +177,9 @@ export const OrderTrackingPage: React.FC = () => {
   const { clearCart } = useGlobalCart();
 
   const [orderData, setOrderData] = useState<OrderData>(initialOrderData || {});
+  const [storeCategory, setStoreCategory] = useState('');
   const [rejectionMessage, setRejectionMessage] = useState<string | null>(null);
+  const { callState, formattedTime, startCall } = useCall();
   const [preparingShown, setPreparingShown] = useState(false);
   const [rotatingMessage, setRotatingMessage] = useState('');
   const [messageIndex, setMessageIndex] = useState(0);
@@ -192,6 +195,23 @@ export const OrderTrackingPage: React.FC = () => {
   const messageRotationRef = useRef<NodeJS.Timeout | null>(null);
   const rejectionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const previousStatusRef = useRef<string | undefined>(initialOrderData?.status);
+
+  useEffect(() => {
+    let cancelled = false;
+    const storeId = orderData.storeId;
+    if (!storeId) {
+      setStoreCategory('');
+      return;
+    }
+
+    void getDoc(doc(db, 'stores', storeId)).then(snapshot => {
+      if (!cancelled) setStoreCategory(String(snapshot.data()?.category || '').toLowerCase());
+    }).catch(() => {
+      if (!cancelled) setStoreCategory('');
+    });
+
+    return () => { cancelled = true; };
+  }, [orderData.storeId]);
 
   // Calculate step states based on current Firestore data
   const stepStates = getCompletedSteps(
@@ -382,6 +402,9 @@ export const OrderTrackingPage: React.FC = () => {
   const cancellationFeeApplies = ['accepted', 'preparing', 'ready_for_pickup'].includes(orderData.status || '');
   const category = String(orderData.category || orderData.type || 'food').toLowerCase();
   const normalizedCategory = category === 'clothes' || category === 'hardware' || category === 'small_shop' || category === 'market' ? category : 'food';
+  const canCallStore = ['market', 'small_shop'].includes(storeCategory)
+    && ['pending', 'accepted', 'ready_for_pickup'].includes(orderData.status || '')
+    && ['waiting', 'no_driver_found', ''].includes(orderData.driverStatus || '');
 
   const handleCancelRequest = () => {
     if (!canCancelOrder || isCancelling) return;
@@ -441,15 +464,29 @@ export const OrderTrackingPage: React.FC = () => {
         transition={{ type: 'spring', damping: 25, stiffness: 200 }}
         className="flex-shrink-0 bg-white dark:bg-gray-900 shadow-md px-4 py-4 z-20"
       >
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-3">
           <div>
             <h1 className="text-lg font-bold text-gray-900 dark:text-white">{orderData.storeName || 'Store'}</h1>
             <p className="text-xs text-gray-500 dark:text-gray-400">#{orderId?.slice(-4).toUpperCase() || 'Order'}</p>
           </div>
-          <div className="text-right">
-            <p className="text-xl font-bold text-gray-900 dark:text-white">
-              K {orderData.total?.toFixed(2) || '0.00'}
-            </p>
+          <div className="flex items-center gap-3">
+            {canCallStore && (
+              <button
+                type="button"
+                disabled={callState !== 'idle'}
+                onClick={() => { if (orderId && callState === 'idle') void startCall(orderId, 'Store'); }}
+                aria-label={callState === 'calling' ? 'Calling store' : callState === 'in-call' ? `In call · ${formattedTime}` : 'Call store'}
+                className={`flex h-10 items-center gap-2 rounded-full px-4 text-sm font-semibold shadow-sm transition-colors disabled:cursor-not-allowed disabled:opacity-80 ${callState === 'in-call' ? 'bg-emerald-600 text-white' : 'bg-[#5B2EFF] text-white hover:bg-[#4A24D9]'}`}
+              >
+                <Phone size={17} className={callState === 'calling' ? 'animate-pulse' : ''} />
+                <span>{callState === 'calling' ? 'Calling…' : callState === 'in-call' ? `In call · ${formattedTime}` : 'Call store'}</span>
+              </button>
+            )}
+            <div className="text-right">
+              <p className="text-xl font-bold text-gray-900 dark:text-white">
+                K {orderData.total?.toFixed(2) || '0.00'}
+              </p>
+            </div>
           </div>
         </div>
       </motion.div>

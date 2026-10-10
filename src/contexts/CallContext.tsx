@@ -7,7 +7,7 @@ import { CallOverlay } from '../components/CallOverlay';
 
 type CallState = 'idle' | 'calling' | 'ringing' | 'in-call' | 'ended';
 type CallSnapshot = { callId: string; orderId: string; channel: string; direction: 'incoming' | 'outgoing'; peerName?: string; status: 'ringing' | 'active' | 'ended' | 'declined' | 'missed' | 'cancelled' | 'trip_ended'; expiresAt?: number; startedAt?: number; durationSeconds?: number; };
-type CallContextValue = { callState: CallState; peerName: string; elapsedSeconds: number; formattedTime: string; isMuted: boolean; endedMessage: string | null; startCall: (orderId: string) => Promise<void>; answerCall: () => Promise<void>; declineCall: () => Promise<void>; endCall: () => Promise<void>; toggleMute: () => Promise<void>; };
+type CallContextValue = { callState: CallState; peerName: string; elapsedSeconds: number; formattedTime: string; isMuted: boolean; endedMessage: string | null; startCall: (orderId: string, peerLabel?: string) => Promise<void>; answerCall: () => Promise<void>; declineCall: () => Promise<void>; endCall: () => Promise<void>; toggleMute: () => Promise<void>; };
 const CallContext = createContext<CallContextValue | null>(null);
 const terminal = new Set(['ended', 'declined', 'missed', 'cancelled', 'trip_ended']);
 const formatTime = (seconds: number) => { const s = Math.max(0, seconds); const h = Math.floor(s / 3600); const m = Math.floor((s % 3600) / 60).toString().padStart(2, '0'); const rest = (s % 60).toString().padStart(2, '0'); return h ? `${h}:${m}:${rest}` : `${m}:${rest}`; };
@@ -15,6 +15,7 @@ const formatTime = (seconds: number) => { const s = Math.max(0, seconds); const 
 export function CallProvider({ children }: { children: React.ReactNode }) {
   const [callState, setCallState] = useState<CallState>('idle');
   const [peerName, setPeerName] = useState('Driver');
+  const peerLabelRef = useRef('Driver');
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [isMuted, setIsMuted] = useState(false);
   const [endedMessage, setEndedMessage] = useState<string | null>(null);
@@ -48,7 +49,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     setCallState('ended');
     setEndedMessage(message);
     if (endedTimerRef.current !== null) window.clearTimeout(endedTimerRef.current);
-    endedTimerRef.current = window.setTimeout(() => { setCallState('idle'); setEndedMessage(null); setPeerName('Driver'); endingRef.current = false; activeCallIdRef.current = null; }, 2500);
+    endedTimerRef.current = window.setTimeout(() => { setCallState('idle'); setEndedMessage(null); setPeerName('Driver'); peerLabelRef.current = 'Driver'; endingRef.current = false; activeCallIdRef.current = null; }, 2500);
   }, [leaveAgora, stopAudio]);
 
   const messageForTerminal = useCallback((next: CallSnapshot) => {
@@ -88,7 +89,8 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
         activeCallIdRef.current = next.callId;
         seenRef.current = true;
         setSnapshot(next);
-        setPeerName(next.peerName || 'Driver');
+        const resolvedPeerName = next.peerName || (callStateRef.current === 'calling' ? peerLabelRef.current : 'Driver');
+        setPeerName(resolvedPeerName);
         if (next.status === 'ringing') {
           setCallState(next.direction === 'incoming' ? 'ringing' : 'calling');
           if (next.direction === 'incoming') { try { const audio = audioRef.current || new Audio('/sounds/call.mp3'); audioRef.current = audio; audio.loop = true; void audio.play().catch(() => undefined); } catch { /* optional ringtone */ } }
@@ -107,11 +109,12 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => { if (callState !== 'in-call' || !snapshot?.startedAt) return; const timer = window.setInterval(() => setElapsedSeconds(Math.floor((Date.now() + offsetRef.current - snapshot.startedAt!) / 1000)), 1000); return () => window.clearInterval(timer); }, [callState, snapshot?.startedAt]);
 
   const connect = useCallback(async (credentials: CallCredentials) => { activeRef.current = await joinChannel(credentials, () => setCallState('in-call')); }, []);
-  const start = useCallback(async (orderId: string) => {
+  const start = useCallback(async (orderId: string, peerLabel = 'Driver') => {
     if (endingRef.current || callStateRef.current !== 'idle') return;
-    endingRef.current = true; setCallState('calling'); callStateRef.current = 'calling'; setEndedMessage(null); setElapsedSeconds(0); setIsMuted(false); seenRef.current = true;
+    peerLabelRef.current = peerLabel;
+    endingRef.current = true; setCallState('calling'); callStateRef.current = 'calling'; setEndedMessage(null); setElapsedSeconds(0); setIsMuted(false); setPeerName(peerLabel); seenRef.current = true;
     let credentials: CallCredentials | null = null;
-    try { credentials = await apiStartCall(orderId); activeCallIdRef.current = credentials.callId || null; const next = { ...credentials, callId: credentials.callId || '', orderId, direction: 'outgoing' as const, status: 'ringing' as const }; setSnapshot(next); snapshotRef.current = next; setPeerName('Driver'); await connect(credentials); endingRef.current = false; } catch (error) { if (credentials?.callId) await apiEndCall(credentials.callId).catch(() => undefined); const raw = error instanceof Error ? error.message : String(error); const message = /permission|microphone|notallowed|denied/i.test(raw) ? 'Microphone access is blocked. Allow it in the browser and try again.' : raw; await finishCall(message); }
+    try { credentials = await apiStartCall(orderId); activeCallIdRef.current = credentials.callId || null; const next = { ...credentials, callId: credentials.callId || '', orderId, direction: 'outgoing' as const, status: 'ringing' as const }; setSnapshot(next); snapshotRef.current = next; setPeerName(peerLabel); await connect(credentials); endingRef.current = false; } catch (error) { if (credentials?.callId) await apiEndCall(credentials.callId).catch(() => undefined); const raw = error instanceof Error ? error.message : String(error); const message = /permission|microphone|notallowed|denied/i.test(raw) ? 'Microphone access is blocked. Allow it in the browser and try again.' : raw; await finishCall(message); }
   }, [connect, finishCall]);
   const answer = useCallback(async () => { if (endingRef.current || !snapshotRef.current?.callId) return; endingRef.current = true; const current = snapshotRef.current; activeCallIdRef.current = current.callId; seenRef.current = true; try { stopAudio(); const credentials = await acceptCall(current.callId); await connect(credentials); endingRef.current = false; } catch (error) { await finishCall(error instanceof Error ? error.message : String(error)); } }, [connect, finishCall, stopAudio]);
   const decline = useCallback(async () => { if (endingRef.current || !snapshotRef.current?.callId) return; endingRef.current = true; const id = snapshotRef.current.callId; await declineCall(id).catch(() => undefined); await finishCall('Call declined'); }, [finishCall]);
