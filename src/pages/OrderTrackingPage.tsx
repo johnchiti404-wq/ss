@@ -274,7 +274,7 @@ export const OrderTrackingPage: React.FC = () => {
         setRejectionMessage(rejectionDetails.message);
         rejectionTimeoutRef.current = setTimeout(() => {
           clearCart();
-          navigate('/');
+          navigate('/', { replace: true });
         }, 2000);
       }
     } else {

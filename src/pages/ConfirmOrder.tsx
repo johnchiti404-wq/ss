@@ -402,8 +402,9 @@ export const ConfirmOrder: React.FC<ConfirmOrderProps> = ({
       
       const navigateTo = isStoreFlow ? '/order-tracking' : '/waiting-for-driver';
 
-      navigate(navigateTo, {
-        state: {
+  navigate(navigateTo, {
+    replace: true,
+    state: {
           orderId,
           orderType: isService ? serviceType : (isStoreFlow ? (type || 'food') : 'ride'),
           orderData: {

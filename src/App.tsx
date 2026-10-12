@@ -203,7 +203,7 @@ function AppContent({ userId }: { userId: string }) {
       setShowRatingModal(false);
       setAppState(prev => ({ ...prev, currentRideId: null }));
       setRideStatus(null);
-      navigate('/');
+      navigate('/', { replace: true });
     } catch (error) {
       console.error('Error submitting rating:', error);
     }

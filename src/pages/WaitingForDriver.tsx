@@ -195,7 +195,7 @@ export const WaitingForDriver: React.FC<WaitingForDriverProps> = ({
       localStorage.removeItem('currentOrderType');
 
       setShowCancelConfirmation(false);
-      navigate('/');
+      navigate('/', { replace: true });
     } catch (error) {
       console.error('Error cancelling order:', error);
       setShowCancelConfirmation(false);
