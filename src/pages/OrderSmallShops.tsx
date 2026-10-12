@@ -120,14 +120,14 @@ export const OrderSmallShops: React.FC = () => {
   }
 
   if (!storeId || products.length === 0) {
-    return <div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex flex-col items-center justify-center gap-4"><p className="text-gray-600">Store not found or no items available</p><button onClick={() => navigate('/shop', { state: { category: 'small_shop' } })} className="rounded-2xl bg-purple-600 px-6 py-3 font-semibold text-white">Back to Shop</button></div>;
+    return <div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex flex-col items-center justify-center gap-4"><p className="text-gray-600">Store not found or no items available</p><button onClick={() => navigate(-1)} className="rounded-2xl bg-purple-600 px-6 py-3 font-semibold text-white">Back to Shop</button></div>;
   }
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex h-screen flex-col bg-gray-50 dark:bg-gray-950">
       <header className="fixed inset-x-0 top-0 z-10 border-b border-gray-100 bg-white px-4 py-3 dark:border-gray-800 dark:bg-gray-900">
         <div className="mb-3 flex items-center justify-between">
-          <button onClick={() => navigate('/shop', { state: { category: 'small_shop' } })} className="rounded-lg p-2 hover:bg-gray-100 dark:hover:bg-gray-800" aria-label="Back"><ArrowLeft className="h-6 w-6" /></button>
+          <button onClick={() => navigate(-1)} className="rounded-lg p-2 hover:bg-gray-100 dark:hover:bg-gray-800" aria-label="Back"><ArrowLeft className="h-6 w-6" /></button>
           <div className="relative"><ShoppingCart className="h-6 w-6" />{cartCount > 0 && <span className="absolute -right-2 -top-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-xs font-bold text-white">{cartCount}</span>}</div>
         </div>
         <p className="mb-1 text-xs text-gray-500">Small Shops</p>

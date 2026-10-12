@@ -282,8 +282,9 @@ export const YourRoute: React.FC<YourRouteProps> = ({ onRouteComplete }) => {
       driverId: editDriverId,
       stops: stopsPayload
     }).then((result: any) => {
-      navigate(returnTo === 'driver-coming' ? '/driver-coming' : -1 as any, {
-        state: {
+navigate('/driver-coming', {
+  replace: true,
+  state: {
           orderId: editOrderId,
           orderType: editOrderType,
           orderData: {

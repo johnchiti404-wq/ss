@@ -491,17 +491,7 @@ export const SelectRide: React.FC<SelectRideProps> = ({
       >
         <div className="bg-white rounded-2xl shadow-lg px-4 py-3 flex items-center gap-3">
           <button
-            onClick={() => navigate('/your-route', {
-              replace: true,
-              state: {
-                prefilledDestination: effectiveDestination,
-                prefilledPickup: effectivePickup,
-                prefilledPickupCoords: effectivePickupCoords,
-                prefilledDestinationCoords: effectiveDestinationCoords,
-                prefilledStops: navStops.length > 0 ? navStops : stops,
-                prefilledStopCoords: location.state?.stopCoords || []
-              }
-            })}
+            onClick={() => navigate(-1)}
             className="flex-shrink-0 w-8 h-8 flex items-center justify-center hover:bg-gray-100 rounded-full transition-colors"
           >
             <X size={20} className="text-gray-700" />
@@ -525,9 +515,8 @@ export const SelectRide: React.FC<SelectRideProps> = ({
 
           <button
             onClick={() => navigate('/your-route', {
-              replace: true,
-              state: {
-                highlightAddStop: true,
+  state: {
+  highlightAddStop: true,
                 prefilledDestination: effectiveDestination,
                 prefilledPickup: effectivePickup,
                 prefilledPickupCoords: effectivePickupCoords,

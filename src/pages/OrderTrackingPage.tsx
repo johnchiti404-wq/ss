@@ -7,6 +7,7 @@ import { doc, getDoc, onSnapshot, updateDoc, serverTimestamp } from 'firebase/fi
 import { soundManager } from '../utils/notificationSound';
 import { useGlobalCart } from '../contexts/GlobalCartContext';
 import { usePreventBack } from '../hooks/usePreventBack';
+import { buildTrackingState } from '../hooks/useActiveOrder';
 import { useCall } from '../contexts/CallContext';
 
 interface OrderItem {
@@ -333,7 +334,7 @@ export const OrderTrackingPage: React.FC = () => {
       transitionDelayRef.current = setTimeout(() => {
         navigate('/live-tracking', {
           state: {
-            orderId,
+            ...buildTrackingState({ ...orderData, id: orderId }, orderId || ''),
             orderData: {
               ...orderData,
               id: orderId,

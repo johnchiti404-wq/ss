@@ -5,6 +5,7 @@ import { MapLibreMap, MapMarker } from '../components/MapLibreMap';
 import { useUserProfile } from '../hooks/useUserProfile';
 import { useRideContext } from '../contexts/RideContext';
 import { useGeolocation } from '../hooks/useGeolocation';
+import { useActiveOrder } from '../hooks/useActiveOrder';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { auth } from '../config/firebase';
 import {
@@ -62,6 +63,8 @@ export const ConfirmOrder: React.FC<ConfirmOrderProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const { profile } = useUserProfile();
   const { isRideActive } = useRideContext();
+  const { order: activeOrder } = useActiveOrder();
+  const hasActiveOrder = Boolean(activeOrder);
   const { latitude, longitude } = useGeolocation();
 
   const {
@@ -372,7 +375,7 @@ export const ConfirmOrder: React.FC<ConfirmOrderProps> = ({
   };
 
   const handleConfirmOrder = async () => {
-    if (isLoading || isRideActive) {
+    if (isLoading || isRideActive || hasActiveOrder) {
       if (isRideActive) {
         alert('You already have an active order.');
       }
@@ -747,7 +750,7 @@ export const ConfirmOrder: React.FC<ConfirmOrderProps> = ({
         <div className="flex-shrink-0 px-6 pb-6 pt-4 border-t border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900">
           <motion.button
             onClick={handleConfirmOrder}
-            disabled={isLoading || isRideActive}
+            disabled={isLoading || isRideActive || hasActiveOrder}
             className={`w-full py-4 rounded-xl font-semibold text-lg shadow-lg transition-colors
               ${isLoading || isRideActive ? 'bg-gray-400 cursor-not-allowed' : 'bg-[#5B2EFF] text-white hover:bg-[#4A24D9]'}`}
             whileTap={{ scale: 0.98 }}

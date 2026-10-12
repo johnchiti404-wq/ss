@@ -18,6 +18,7 @@ import { listenToDriverLocation } from '../services/trackingService';
 import { trimPolylineFromPosition } from '../utils/polylineUtils';
 import { soundManager } from '../utils/notificationSound';
 import { usePreventBack } from '../hooks/usePreventBack';
+import { markOrderRated } from '../hooks/useActiveOrder';
 import { useGeolocation } from '../hooks/useGeolocation';
 import { 
   subscribeToOrder, 
@@ -868,6 +869,7 @@ export const DriverComing: React.FC<DriverComingProps> = ({
         driverPhoto={driverInfo?.photo || ''}
         driverId={driverInfo?.id || firestoreRideData?.driverId || ''}
         orderId={orderId || ''}
+        onSubmitted={() => void markOrderRated(orderId || '')}
         storeName={isFood ? (foodOrderDetails?.storeName || orderData?.storeName || 'Store') : undefined}
         storeImage={isFood ? (foodOrderDetails?.storeImage || orderData?.storeImage || '') : undefined}
         storeId={isFood ? (foodOrderDetails?.storeId || orderData?.storeId || '') : undefined}

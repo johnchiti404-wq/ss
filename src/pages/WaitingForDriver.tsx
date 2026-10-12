@@ -8,6 +8,7 @@ import { db } from '../config/firebase';
 import { doc, onSnapshot, updateDoc } from 'firebase/firestore';
 import { subscribeToOrder, cancelOrder } from '../services/orderService';
 import { usePreventBack } from '../hooks/usePreventBack';
+import { buildTrackingState } from '../hooks/useActiveOrder';
 
 interface WaitingForDriverProps {
   destination: string;
@@ -139,7 +140,7 @@ export const WaitingForDriver: React.FC<WaitingForDriverProps> = ({
         setTimeout(() => {
           navigate('/driver-coming', {
             state: {
-              orderId,
+              ...buildTrackingState({ ...orderData, ...order }, orderId || ''),
               orderType: order.serviceType,
               orderData: {
                 ...orderData,

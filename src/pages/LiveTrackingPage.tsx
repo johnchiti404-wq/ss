@@ -16,6 +16,7 @@ import { useUserProfile } from '../hooks/useUserProfile';
 import { auth } from '../config/firebase';
 import { soundManager } from '../utils/notificationSound';
 import { usePreventBack } from '../hooks/usePreventBack';
+import { markOrderRated } from '../hooks/useActiveOrder';
 import { useGeolocation } from '../hooks/useGeolocation';
 
 interface OrderItem {
@@ -777,6 +778,7 @@ export const LiveTrackingPage: React.FC = () => {
         driverPhoto={driverData?.profileImage || driverData?.photo || ''}
         driverId={driverData?.id || orderData.driverId || ''}
         orderId={orderId || ''}
+        onSubmitted={() => void markOrderRated(orderId || '')}
         storeName={orderData.storeName || 'Store'}
         storeImage={orderData.storeImage || ''}
         storeId={orderData.storeId || ''}

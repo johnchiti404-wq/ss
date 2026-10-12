@@ -2,14 +2,14 @@ import { createContext, useContext, useEffect, useMemo, useState, type ReactNode
 import { collection, onSnapshot, query, where, type DocumentData } from 'firebase/firestore';
 import { db } from '../config/firebase';
 
-export const ACTIVE_STATUSES = ['pending', 'accepted', 'arriving', 'arrived', 'started', 'in_progress', 'on_trip', 'ready_for_pickup', 'driver_assigned'] as const;
+export const ACTIVE_STATUSES = ['pending', 'accepted', 'arriving', 'arrived', 'started', 'in_progress', 'on_trip', 'ready_for_pickup', 'driver_assigned', 'at_store', 'picked_up', 'delivered'] as const;
 export const INACTIVE_STATUSES = ['completed', 'cancelled', 'cancelled_pending_refund', 'rejected', 'declined', 'missed', 'no_driver_found'] as const;
 
 export type ActiveOrder = DocumentData & { id: string; status?: string; driverStatus?: string; storeId?: string; createdAt?: { toMillis?: () => number } };
 
 export function routeForOrder(order: ActiveOrder): string {
   if (order.storeId) {
-    if (order.status === 'driver_assigned' && ['assigned', 'at_store', 'picked_up', 'delivered'].includes(order.driverStatus || '')) return '/live-tracking';
+    if (['at_store', 'picked_up', 'delivered'].includes(order.status || '') || (order.status === 'driver_assigned' && order.driverStatus === 'assigned')) return '/live-tracking';
     return '/order-tracking';
   }
   return order.status === 'pending' ? '/waiting-for-driver' : '/driver-coming';
