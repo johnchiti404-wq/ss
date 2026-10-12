@@ -372,8 +372,7 @@ export const YourRoute: React.FC<YourRouteProps> = ({ onRouteComplete }) => {
     } else if (checkFieldsFilled() && (serviceType === 'ride' || serviceType === 'package' || serviceType === 'truck')) {
       onRouteComplete?.(newPickup, newDestination, newStops);
 navigate('/select-ride', {
-      replace: true,
-      state: {
+    state: {
         serviceType,
         pickup: newPickup,
           destination: newDestination,
@@ -450,8 +449,7 @@ navigate('/select-ride', {
 
     onRouteComplete?.(pickup, destination, stops);
     navigate('/select-ride', {
-      replace: true,
-      state: {
+    state: {
         serviceType,
         pickup,
         destination,

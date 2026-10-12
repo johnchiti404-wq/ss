@@ -15,6 +15,7 @@ interface RatingModalProps {
   storeName?: string;
   storeImage?: string;
   storeId?: string;
+  onSubmitted?: () => void;
 }
 
 const RATING_EMOJIS: Record<number, string> = {
@@ -123,6 +124,7 @@ export const RatingModal: React.FC<RatingModalProps> = ({
       if (path === 'direct_trip') {
         // Direct trip: submit driver rating and close
         await submitDriverRating(rating, feedback);
+        onSubmitted?.();
         onClose();
       } else {
         // Store delivery path
@@ -146,6 +148,7 @@ export const RatingModal: React.FC<RatingModalProps> = ({
             submitDriverRating(driverRating.rating, driverRating.feedback),
             submitStoreRating(rating, feedback),
           ]);
+          onSubmitted?.();
           onClose();
         }
       }

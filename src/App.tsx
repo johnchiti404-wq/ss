@@ -48,6 +48,9 @@ import { getETA } from './utils/etaCalculation';
 import { useNotificationPermission } from './hooks/useNotificationPermission';
 import { CallProvider } from './contexts/CallContext';
 import { CallOverlay } from './components/CallOverlay';
+import { ActiveOrderProvider, useActiveOrder } from './hooks/useActiveOrder';
+import { ActiveOrderGate } from './components/ActiveOrderGate';
+import { PendingRatingHost } from './components/PendingRatingHost';
 
 interface AppState {
   selectedDestination: string;
@@ -66,6 +69,7 @@ function AppContent({ userId }: { userId: string }) {
   }, [userId]);
   const location = useLocation();
   const { profile } = useUserProfile(userId);
+  const { order: activeOrder, isLoading: activeOrderLoading } = useActiveOrder();
 
   const [appState, setAppState] = useState<AppState>({
     selectedDestination: '',
@@ -94,66 +98,6 @@ function AppContent({ userId }: { userId: string }) {
   // throttled reverse geocoding are now owned by the global LocationProvider
   // (wired in main.tsx). Pages read it via useGeolocation / useLocation.
 
-  useEffect(() => {
-    const rideId = localStorage.getItem('currentRideId');
-    if (rideId) {
-      setAppState(prev => ({ ...prev, currentRideId: rideId }));
-      navigate('/');
-    }
-  }, []);
-
-  useEffect(() => {
-    const handleOnline = () => {
-      console.log('Back online, syncing ride state...');
-      const rideId = localStorage.getItem('currentRideId');
-      if (rideId) {
-        setAppState(prev => ({ ...prev, currentRideId: rideId }));
-        navigate('/');
-      }
-    };
-
-    const handleOffline = () => {
-      console.warn('No internet connection. Reconnecting when available...');
-    };
-
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
-
-    return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
-    };
-  }, [navigate]);
-
-  useEffect(() => {
-    if (!appState.currentRideId) return;
-
-    const unsubscribe = firebaseService.listenToRideStatus(appState.currentRideId, (statusData) => {
-      if (statusData) {
-        setRideStatus(statusData.status);
-
-        if (statusData.status === 'pending' && location.pathname !== '/waiting-for-driver') {
-          navigate('/waiting-for-driver');
-        }
-
-        if (statusData.status === 'accepted' && location.pathname !== '/driver-coming') {
-          navigate('/driver-coming');
-        }
-
-        if (statusData.status === 'arrived' || statusData.status === 'in_progress') {
-          if (location.pathname !== '/driver-coming') {
-            navigate('/driver-coming');
-          }
-        }
-
-        if (statusData.status === 'completed') {
-          setShowRatingModal(true);
-        }
-      }
-    });
-
-    return () => unsubscribe();
-  }, [appState.currentRideId, location.pathname, navigate]);
 
   useEffect(() => {
     if (currentRide?.driverId) {
@@ -265,13 +209,10 @@ function AppContent({ userId }: { userId: string }) {
     }
   };
 
-  const isRideActive = () => {
-    return rideStatus === 'accepted' || rideStatus === 'arrived' || rideStatus === 'in_progress';
-  };
+  const isRideActive = () => Boolean(activeOrder && !activeOrder.storeId && activeOrder.status !== 'pending');
+  const isPending = () => Boolean(activeOrder && activeOrder.status === 'pending');
 
-  const isPending = () => {
-    return rideStatus === 'pending';
-  };
+  if (activeOrderLoading) return <div className="fixed inset-0 bg-white" />;
 
   return (
     <GlobalCartProvider>
@@ -323,11 +264,7 @@ function AppContent({ userId }: { userId: string }) {
                 path="/your-route"
                 element={
                   <PageTransition>
-                    {isRideActive() ? (
-                      <Dashboard onSearchSelect={() => alert('You already have an active ride.')} />
-                    ) : (
-                      <YourRoute onRouteComplete={handleRouteComplete} />
-                    )}
+                    <YourRoute onRouteComplete={handleRouteComplete} />
                   </PageTransition>
                 }
               />
@@ -415,17 +352,13 @@ function AppContent({ userId }: { userId: string }) {
                 path="/select-ride"
                 element={
                   <PageTransition>
-                    {isRideActive() ? (
-                      <Dashboard onSearchSelect={() => alert('You already have an active ride.')} />
-                    ) : (
-                      <SelectRide
-                        destination={appState.selectedDestination}
-                        pickup={appState.selectedPickup}
-                        stops={appState.selectedStops}
-                        onBack={handleBack}
-                        onSelectRide={handleRideSelect}
-                      />
-                    )}
+                    <SelectRide
+                      destination={appState.selectedDestination}
+                      pickup={appState.selectedPickup}
+                      stops={appState.selectedStops}
+                      onBack={handleBack}
+                      onSelectRide={handleRideSelect}
+                    />
                   </PageTransition>
                 }
               />
@@ -433,20 +366,16 @@ function AppContent({ userId }: { userId: string }) {
                 path="/confirm-order"
                 element={
                   <PageTransition>
-                    {isRideActive() || isPending() ? (
-                      <Dashboard onSearchSelect={() => alert('You already have an active ride.')} />
-                    ) : (
-                      <ConfirmOrder
-                        destination={appState.selectedDestination}
-                        pickup={appState.selectedPickup}
-                        stops={appState.selectedStops}
-                        carType={appState.selectedCarType}
-                        price={appState.selectedPrice}
-                        onBack={handleBack}
-                        onRideConfirmed={handleConfirmOrder}
-                        onRideCreated={handleRideCreated}
-                      />
-                    )}
+                    <ConfirmOrder
+                      destination={appState.selectedDestination}
+                      pickup={appState.selectedPickup}
+                      stops={appState.selectedStops}
+                      carType={appState.selectedCarType}
+                      price={appState.selectedPrice}
+                      onBack={handleBack}
+                      onRideConfirmed={handleConfirmOrder}
+                      onRideCreated={handleRideCreated}
+                    />
                   </PageTransition>
                 }
               />
@@ -486,15 +415,6 @@ function AppContent({ userId }: { userId: string }) {
             </Routes>
           </AnimatePresence>
 
-          {showRatingModal && driverInfo && (
-            <RatingModal
-              isOpen={showRatingModal}
-              onClose={() => {}}
-              driverName={driverInfo.name}
-              driverPhoto={driverInfo.photo}
-              onSubmitRating={handleSubmitRating}
-            />
-          )}
         </div>
           </RideProvider>
           </MessageProvider>
@@ -542,8 +462,12 @@ function App() {
         >
           <Router>
             <CallProvider>
-              <AppContent userId={authUser!.uid} />
-              <CallOverlay />
+              <ActiveOrderProvider uid={authUser!.uid}>
+                <ActiveOrderGate />
+                <PendingRatingHost />
+                <AppContent userId={authUser!.uid} />
+                <CallOverlay />
+              </ActiveOrderProvider>
             </CallProvider>
           </Router>
         </motion.div>

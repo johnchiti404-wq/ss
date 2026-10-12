@@ -319,6 +319,8 @@ export const ConfirmOrder: React.FC<ConfirmOrderProps> = ({
       vehicleTitle: isRide ? rideData?.name : (vehicle?.name || orderData.deliveryMode?.label || ''),
       paymentMethod: 'cash',
       currency: 'ZMW',
+      ratingStatus: 'pending',
+      ratingPromptCount: 0,
     };
 
     // Add items for store-based orders (food, clothes, hardware)

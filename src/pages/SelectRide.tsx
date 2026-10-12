@@ -336,8 +336,7 @@ export const SelectRide: React.FC<SelectRideProps> = ({
       
       // Navigate to confirm order with all ride/service data
       navigate('/confirm-order', {
-        replace: true,
-        state: {
+  state: {
           // For service flows, pass orderType as the serviceType so ConfirmOrder can identify the flow
           orderType: isServiceFlow ? serviceType : 'ride',
           // ALWAYS pass serviceType explicitly so ConfirmOrder doesn't have to infer

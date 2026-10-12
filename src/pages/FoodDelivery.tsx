@@ -71,6 +71,13 @@ export function FoodDelivery() {
     return null;
   });
 
+  const storeLocation = routeData?.storeLocation || { lat: null, lng: null };
+  const deliveryCoords = routeData?.deliveryCoords || { lat: null, lng: null };
+  const storeDistanceKm = useMemo(() => {
+    if (deliveryCoords?.lat == null || deliveryCoords?.lng == null || storeLocation?.lat == null || storeLocation?.lng == null) return null;
+    return haversineDistanceKm(deliveryCoords.lat, deliveryCoords.lng, storeLocation.lat, storeLocation.lng);
+  }, [deliveryCoords?.lat, deliveryCoords?.lng, storeLocation?.lat, storeLocation?.lng]);
+
   // Backend delivery options state
   const [deliveryOptions, setDeliveryOptions] = useState<BackendRideOption[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -139,9 +146,7 @@ export function FoodDelivery() {
     setError('');
 
     // Get store location from route data - REAL COORDINATES ONLY
-    const storeLocation = routeData?.storeLocation || { lat: null, lng: null };
     const storeAddress = routeData?.storeAddress || cart[0]?.storeAddress || '';
-    const deliveryCoords = routeData?.deliveryCoords || { lat: null, lng: null };
 
     // Require real store coordinates - no fallbacks
     if (!storeLocation?.lat || !storeLocation?.lng) {
@@ -168,10 +173,6 @@ export function FoodDelivery() {
           lat: s.lat ?? 0,
           lng: s.lng ?? 0,
         }));
-
-      const storeDistanceKm = deliveryCoords?.lat != null && deliveryCoords?.lng != null && storeLocation.lat != null && storeLocation.lng != null
-        ? haversineDistanceKm(deliveryCoords.lat, deliveryCoords.lng, storeLocation.lat, storeLocation.lng)
-        : null;
 
       const payload: Record<string, unknown> = {
         pickup: storeAddress || 'Store',
@@ -234,7 +235,7 @@ export function FoodDelivery() {
   useEffect(() => {
     loadDeliveryOptions();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [location.key, routeData?.storeLocation, routeData?.deliveryCoords]);
+  }, [location.key, routeData?.storeLocation, routeData?.deliveryCoords, storeDistanceKm]);
 
   // Keep the drawn route polyline in sync with the currently selected option
   useEffect(() => {
@@ -364,9 +365,6 @@ export function FoodDelivery() {
     const storeId = routeData.storeId || cart[0]?.storeId || '';
     const storeName = routeData.storeName || cart[0]?.storeName || '';
     const storeAddress = routeData.storeAddress || cart[0]?.storeAddress || '';
-    const storeLocation = routeData.storeLocation || { lat: null, lng: null };
-    const deliveryCoords = routeData?.deliveryCoords;
-
     // For delivery flows the "pickup" is the store and the "destination" is the
     // customer's delivery address. Pass the route polyline + both endpoints so
     // ConfirmOrder (and later WaitingForDriver) can draw the route map.
@@ -376,13 +374,9 @@ export function FoodDelivery() {
     const destinationCoords = deliveryCoords?.lat && deliveryCoords?.lng
       ? { lat: deliveryCoords.lat, lng: deliveryCoords.lng }
       : undefined;
-    const storeDistanceKm = deliveryCoords?.lat != null && deliveryCoords?.lng != null && storeLocation.lat != null && storeLocation.lng != null
-      ? haversineDistanceKm(deliveryCoords.lat, deliveryCoords.lng, storeLocation.lat, storeLocation.lng)
-      : null;
 
 navigate('/confirm-order', {
-    replace: true,
-    state: {
+  state: {
         orderType: 'delivery',
         type: category,
         // Pass serviceType explicitly so ConfirmOrder doesn't have to infer it
